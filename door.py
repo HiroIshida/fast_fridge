@@ -3,7 +3,6 @@ import numpy as np
 import skrobot
 from skrobot.model import Axis
 from skrobot.sdf import UnionSDF
-from skrobot.planner import PoseConstraint
 from skrobot.coordinates import rpy_angle
 
 class Fridge(skrobot.model.RobotModel):
