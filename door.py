@@ -5,21 +5,22 @@ from skrobot.model import Axis
 from skrobot.sdf import UnionSDF
 from skrobot.planner import PoseConstraint
 
-class Fridge(object):
+class Fridge(skrobot.model.RobotModel):
     def __init__(self):
+        super(Fridge, self).__init__()
         file_name = "./models/fridge.urdf"
-        self.model = skrobot.models.urdf.RobotModelFromURDF(urdf_file=file_name)
-        self.sdf = UnionSDF.from_robot_model(self.model)
-        self.offset = -0.03
+        self.load_urdf_file(file_name)
+        self.sdf = UnionSDF.from_robot_model(self)
+        axis_offset = -0.03
 
         axis = Axis(axis_length=0.2)
-        self.model.handle_link.assoc(axis, relative_coords=axis)
-        axis.translate([self.offset, 0, 0])
-        self.model.link_list.append(axis)
+        self.handle_link.assoc(axis, relative_coords=axis)
+        axis.translate([axis_offset, 0, 0])
+        self.link_list.append(axis)
         self.axis = axis
 
     def set_angle(self, angle):
-        self.model.door_joint.joint_angle(angle)
+        self.door_joint.joint_angle(angle)
 
     def reset_angle(self):
         self.set_angle(0.0)
@@ -42,7 +43,7 @@ if __name__=='__main__':
     import time 
     fridge = Fridge()
     viewer = skrobot.viewers.TrimeshSceneViewer(resolution=(641, 480))
-    viewer.add(fridge.model)
+    viewer.add(fridge)
     viewer.show()
 
     for i in range(20):
