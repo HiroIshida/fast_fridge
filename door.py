@@ -2,42 +2,50 @@ import numpy as np
 
 import skrobot
 from skrobot.model import Axis
+from skrobot.sdf import UnionSDF
 from skrobot.planner import PoseConstraint
 
 class Fridge(object):
     def __init__(self):
         file_name = "./models/fridge.urdf"
         self.model = skrobot.models.urdf.RobotModelFromURDF(urdf_file=file_name)
+        self.sdf = UnionSDF.from_robot_model(self.model)
         self.offset = -0.03
 
-        axis = Axis()
+        axis = Axis(axis_length=0.2)
         self.model.handle_link.assoc(axis, relative_coords=axis)
         axis.translate([self.offset, 0, 0])
         self.model.link_list.append(axis)
+        self.axis = axis
 
     def set_angle(self, angle):
         self.model.door_joint.joint_angle(angle)
 
-    def reset_pose(self):
+    def reset_angle(self):
         self.set_angle(0.0)
+
+    def gen_sdf(self, angle):
+        def inner(X):
+            self.set_angle(angle)
+            sd_vals = self.sdf(X)
+            self.reset_angle()
+            return sd_vals
+        return inner
 
     def grasping_gripper_pose(self, angle):
         self.set_angle(angle)
-        coords = self.model.handle_link.copy_worldcoords()
+        coords = self.axis.copy_worldcoords()
+        self.reset_angle()
         return coords
 
-    def gen_open_constraint(self, n_wp, k_start, k_end, open_angle):
-        door_angle_seq = np.linspace(0, open_angle, k_end - k_start + 1)
-        coords_seq = []
-        for angle in door_angle_seq:
-            coords = self.grasping_gripper_pose(angle)
-            coords_seq.append(coords)
-        self.reset_pose()
-        return coords_seq
+if __name__=='__main__':
+    import time 
+    fridge = Fridge()
+    viewer = skrobot.viewers.TrimeshSceneViewer(resolution=(641, 480))
+    viewer.add(fridge.model)
+    viewer.show()
 
-fridge = Fridge()
-coords_seq = fridge.gen_open_constraint(20, 10, 15, 0.5)
-
-viewer = skrobot.viewers.TrimeshSceneViewer(resolution=(641, 480))
-viewer.add(fridge.model)
-viewer.show()
+    for i in range(20):
+        time.sleep(0.5)
+        fridge.set_angle(i * 0.1)
+        viewer.redraw()
