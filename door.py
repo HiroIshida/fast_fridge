@@ -4,6 +4,7 @@ import skrobot
 from skrobot.model import Axis
 from skrobot.sdf import UnionSDF
 from skrobot.planner import PoseConstraint
+from skrobot.coordinates import rpy_angle
 
 class Fridge(skrobot.model.RobotModel):
     def __init__(self):
@@ -36,8 +37,12 @@ class Fridge(skrobot.model.RobotModel):
     def grasping_gripper_pose(self, angle):
         self.set_angle(angle)
         coords = self.axis.copy_worldcoords()
+        pos = coords.worldpos()
+        rot = coords.worldrot()
+        ypr = rpy_angle(rot)[0] # skrobot's rpy is ypr
+        rpy = [ypr[2], ypr[1], ypr[0]]
         self.reset_angle()
-        return coords
+        return np.hstack([pos, rpy])
 
 if __name__=='__main__':
     import time 

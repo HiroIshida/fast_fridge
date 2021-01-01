@@ -68,7 +68,7 @@ def create_robot(robot_name, xml_link_list, xml_joint_list=[]):
 
 thickness = 0.03
 width = 0.8
-height = 2.0
+height = 1.7
 
 # create base_link
 b_lower = Box([width, width, thickness])
@@ -94,7 +94,7 @@ b_handle = Box([0.1, 0.02, 0.2])
 xml_handle_link = create_xml_link("handle_link", [b_handle], with_collision=False)
 
 xml_door_joint = create_xml_joint("door_joint", "revolute", "base_link", "door_link", [0, 0, 1], xyz=[-0.5*width, -0.5*width, 0.5*height], rpy=[0, 0, 0])
-xml_handle_joint = create_xml_joint("handle_joint", "fixed", "door_link", "handle_link", [0, 0, 1], xyz=[-0.03, 0.9*width, 0.25*height], rpy=[0, 0, 0])
+xml_handle_joint = create_xml_joint("handle_joint", "fixed", "door_link", "handle_link", [0, 0, 1], xyz=[-0.03, 0.9*width, 0.1*height], rpy=[0, 0, 0])
 xml_robot = create_robot("myrobot", [xml_base_link, xml_door_link, xml_handle_link], [xml_door_joint, xml_handle_joint])
 xmlstr = minidom.parseString(ET.tostring(xml_robot)).toprettyxml(indent="   ")
 file_name = "./fridge.urdf"

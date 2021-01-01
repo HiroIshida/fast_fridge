@@ -14,13 +14,14 @@ from skrobot.planner.utils import get_robot_config
 from skrobot.planner.utils import set_robot_config
 from skrobot.planner.utils import update_fksolver
 from pr2opt_common import *
+from door import Fridge
 
 # initialization stuff
 np.random.seed(0)
 robot_model = pr2_init()
 
-fridge = Box(extents=[0.8, 0.8, 2.0], with_sdf=True)
-fridge.translate([2.2, 2.0, 1.0])
+fridge = Fridge()
+fridge.translate([2.2, 2.0, 0.0])
 
 sscc = TinyfkSweptSphereSdfCollisionChecker(lambda X: fridge.sdf(X), robot_model)
 for link in rarm_coll_link_list(robot_model):
@@ -30,24 +31,22 @@ joint_list = rarm_joint_list(robot_model)
 with_base = True
 
 # constraint manager
-n_wp = 14
+n_wp = 15
 fksolver = sscc.fksolver # TODO temporary
 cm = ConstraintManager(n_wp, [j.name for j in joint_list], fksolver, with_base)
 update_fksolver(fksolver, robot_model)
 
 av_start = get_robot_config(robot_model, joint_list, with_base=with_base)
 cm.add_eq_configuration(0, av_start)
-cm.add_pose_constraint(10, "r_gripper_tool_frame", [1.7, 2.2, 1.0, 0.0, 0.0, 0.0])
-cm.add_multi_pose_constraint(11, 
-        ["r_gripper_tool_frame", "l_gripper_tool_frame"], 
-        [[1.6, 2.1, 1.0, 0.0, 0.0, 0.6], [1.7, 2.2, 1.0]])
-cm.add_multi_pose_constraint(12, 
-        ["r_gripper_tool_frame", "l_gripper_tool_frame"], 
-        [[1.5, 2.0, 1.0, 0.0, 0.0, 0.6], [1.7, 2.2, 1.0]])
-cm.add_multi_pose_constraint(13, 
-        ["r_gripper_tool_frame", "l_gripper_tool_frame"], 
-        [[1.4, 1.9, 1.0, 0.0, 0.0, 0.6], [1.7, 2.2, 1.0]])
 
+sdf_list = []
+angle_open = 0.8
+angles = np.linspace(0, angle_open, 5)
+for i, angle in zip(range(5), angles):
+    sdf = fridge.gen_sdf(angle)
+    pose = fridge.grasping_gripper_pose(angle)
+    cm.add_pose_constraint(10+i, "r_gripper_tool_frame", pose)
+    sdf_list.append(sdf)
 
 av_current = get_robot_config(robot_model, joint_list, with_base=with_base)
 av_seq_init = cm.gen_initial_trajectory(av_current)
