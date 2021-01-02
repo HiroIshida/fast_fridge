@@ -36,20 +36,10 @@ av_start = get_robot_config(robot_model, joint_list, with_base=with_base)
 cm.add_eq_configuration(0, av_start)
 cm.add_pose_constraint(n_wp-1, "l_gripper_tool_frame", [1.5, 2.3, 1.3])
 
-sdf_list = [fridge.gen_sdf(0.0) for i in range(n_wp)]
 angle_open = 0.8
 angles = np.linspace(0, angle_open, 5)
-for i, angle in zip(range(5), angles):
-    idx = 10 + i
-    sdf = fridge.gen_sdf(angle)
-    sdf_list[idx] = sdf
-    #pose = fridge.grasping_gripper_pose(angle)
-    #cm.add_pose_constraint(idx, "r_gripper_tool_frame", pose)
-    sdf_list.append(sdf)
-
+sdf_list = fridge.gen_door_open_sdf_list(n_wp, 10, 14, angle_open)
 for idx, pose in fridge.gen_door_open_coords(10, 14, angle_open):
-    print(idx)
-    print(pose)
     cm.add_pose_constraint(idx, "r_gripper_tool_frame", pose)
 
 sscc = TinyfkSweptSphereSdfCollisionChecker(sdf_list, robot_model)

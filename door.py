@@ -9,13 +9,12 @@ def door_open_angle_seq(n_wp, k_start, k_end, angle_open):
     n_step = k_end - k_start + 1
     angles_whole = []
     angles_opening = np.linspace(0, angle_open, n_step)
-    for _ in range(k_start-1):
+    for _ in range(k_start):
         angles_whole.append(0.0)
     for angle in angles_opening:
         angles_whole.append(angle)
     while(len(angles_whole)!=n_wp):
-        angles_whole.append(0.0)
-    print(angles_whole)
+        angles_whole.append(angle_open)
     return angles_whole
 
 class Fridge(skrobot.model.RobotModel):
