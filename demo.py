@@ -72,13 +72,15 @@ if solve:
         safety_margin=1e-2, with_base=with_base)
     profiler.stop()
     print(profiler.output_text(unicode=True, color=True, show_all=True))
+else:
+    av_seq = av_seq_init
 
-    for av, idx in zip(av_seq, range(len(av_seq))):
-        set_robot_config(robot_model, joint_list, av, with_base=with_base)
-        if idx>9 and idx<=14:
-            fridge.set_angle(angles[idx-10])
-        viewer.redraw()
-        time.sleep(1.0)
+for av, idx in zip(av_seq, range(len(av_seq))):
+    set_robot_config(robot_model, joint_list, av, with_base=with_base)
+    if idx>9 and idx<=14:
+        fridge.set_angle(angles[idx-10])
+    viewer.redraw()
+    time.sleep(1.0)
 
 print('==> Press [q] to close window')
 while not viewer.has_exit:
