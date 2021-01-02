@@ -20,11 +20,10 @@ def rarm_joint_list(robot_model):
 
 def rarm_coll_link_list(robot_model):
     coll_link_list = [
+        robot_model.base_link,
         robot_model.r_upper_arm_link, robot_model.r_forearm_link,
-        robot_model.r_gripper_palm_link, robot_model.r_gripper_r_finger_link,
-        robot_model.r_gripper_l_finger_link,
+        robot_model.r_gripper_palm_link, 
         robot_model.l_upper_arm_link, robot_model.l_forearm_link,
-        robot_model.l_gripper_palm_link, robot_model.l_gripper_r_finger_link,
-        robot_model.l_gripper_l_finger_link
+        robot_model.l_gripper_palm_link, 
         ]
     return coll_link_list

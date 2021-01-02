@@ -29,12 +29,12 @@ with_base = True
 
 # constraint manager
 n_wp = 20
-cm = ConstraintManager(n_wp, [j.name for j in joint_list], robot_model.fksolver, with_base)
+cm = ConstraintManager(n_wp, joint_list, robot_model.fksolver, with_base)
 update_fksolver(robot_model)
 
 av_start = get_robot_config(robot_model, joint_list, with_base=with_base)
 cm.add_eq_configuration(0, av_start)
-cm.add_pose_constraint(n_wp-1, "l_gripper_tool_frame", [1.5, 2.3, 1.3])
+cm.add_pose_constraint(n_wp-1, "l_gripper_tool_frame", [1.85, 2.1, 1.0])
 
 angle_open = 0.8
 angles = np.linspace(0, angle_open, 5)
@@ -43,11 +43,14 @@ for idx, pose in fridge.gen_door_open_coords(10, 14, angle_open):
     cm.add_pose_constraint(idx, "r_gripper_tool_frame", pose)
 
 sscc = TinyfkSweptSphereSdfCollisionChecker(sdf_list, robot_model)
+sscc2 = TinyfkSweptSphereSdfCollisionChecker(sdf_list[-1], robot_model)
 for link in rarm_coll_link_list(robot_model):
     sscc.add_collision_link(link)
+    sscc2.add_collision_link(link)
+
 
 av_current = get_robot_config(robot_model, joint_list, with_base=with_base)
-av_seq_init = cm.gen_initial_trajectory(av_current)
+av_seq_init = cm.gen_initial_trajectory(av_init=av_current, collision_checker=sscc2)
 
 viewer = skrobot.viewers.TrimeshSceneViewer(resolution=(641, 480))
 viewer.add(robot_model)
@@ -59,12 +62,14 @@ viewer.show()
 solve = True
 
 if solve:
+
     from pyinstrument import Profiler
     profiler = Profiler()
     profiler.start()
+    slsqp_option = {'ftol': 1e-4, 'disp': True, 'maxiter': 100}
     av_seq = tinyfk_sqp_plan_trajectory(
         sscc, cm, av_seq_init, joint_list, n_wp,
-        safety_margin=1e-2, with_base=with_base)
+        safety_margin=3e-2, with_base=with_base, slsqp_option=slsqp_option)
     profiler.stop()
     print(profiler.output_text(unicode=True, color=True, show_all=True))
 else:
@@ -75,10 +80,4 @@ for av, idx in zip(av_seq, range(len(av_seq))):
     if idx>9 and idx<=14:
         fridge.set_angle(angles[idx-10])
     viewer.redraw()
-    time.sleep(1.0)
-
-print('==> Press [q] to close window')
-while not viewer.has_exit:
-    time.sleep(0.1)
-    fridge
-    viewer.redraw()
+    time.sleep(0.3)
