@@ -43,9 +43,14 @@ for i, angle in zip(range(5), angles):
     idx = 10 + i
     sdf = fridge.gen_sdf(angle)
     sdf_list[idx] = sdf
-    pose = fridge.grasping_gripper_pose(angle)
-    cm.add_pose_constraint(idx, "r_gripper_tool_frame", pose)
+    #pose = fridge.grasping_gripper_pose(angle)
+    #cm.add_pose_constraint(idx, "r_gripper_tool_frame", pose)
     sdf_list.append(sdf)
+
+for idx, pose in fridge.gen_door_open_coords(10, 14, angle_open):
+    print(idx)
+    print(pose)
+    cm.add_pose_constraint(idx, "r_gripper_tool_frame", pose)
 
 sscc = TinyfkSweptSphereSdfCollisionChecker(sdf_list, robot_model)
 for link in rarm_coll_link_list(robot_model):
