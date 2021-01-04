@@ -84,7 +84,7 @@ if solve:
     from pyinstrument import Profiler
     profiler = Profiler()
     profiler.start()
-    slsqp_option = {'ftol': 1e-4, 'disp': True, 'maxiter': 100}
+    slsqp_option = {'ftol': 1e-3, 'disp': True, 'maxiter': 100}
     av_seq = tinyfk_sqp_plan_trajectory(
         sscc, cm, av_seq_init, joint_list, n_wp,
         safety_margin=3e-2, with_base=with_base, slsqp_option=slsqp_option)
