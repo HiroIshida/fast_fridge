@@ -1,0 +1,52 @@
+<?xml version="1.0" ?>
+<robot name="myrobot">
+   <link name="base_link">
+      <visual>
+         <geometry>
+            <box size="0.8 0.8 1.7"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.85"/>
+      </visual>
+      <collision>
+         <geometry>
+            <box size="0.8 0.8 1.7"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.85"/>
+      </collision>
+   </link>
+   <link name="door_link">
+      <visual>
+         <geometry>
+            <box size="0.03 0.8 1.7"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.4 0.0"/>
+      </visual>
+      <collision>
+         <geometry>
+            <box size="0.03 0.8 1.7"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.4 0.0"/>
+      </collision>
+   </link>
+   <link name="handle_link">
+      <visual>
+         <geometry>
+            <box size="0.1 0.02 0.2"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.0"/>
+      </visual>
+   </link>
+   <joint name="door_joint" type="revolute">
+      <parent link="base_link"/>
+      <child link="door_link"/>
+      <axis xyz="0 0 1"/>
+      <origin rpy="0 0 0" xyz="-0.4 -0.4 0.85"/>
+      <limit effort="1.0" lower="0.0" upper="2.0" velocity="2.0"/>
+   </joint>
+   <joint name="handle_joint" type="fixed">
+      <parent link="door_link"/>
+      <child link="handle_link"/>
+      <axis xyz="0 0 1"/>
+      <origin rpy="0 0 0" xyz="-0.03 0.72 0.17"/>
+   </joint>
+</robot>
