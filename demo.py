@@ -52,13 +52,6 @@ for link in rarm_coll_link_list(robot_model):
 av_current = get_robot_config(robot_model, joint_list, with_base=with_base)
 av_seq_init = cm.gen_initial_trajectory(av_init=av_current, collision_checker=sscc2)
 
-viewer = skrobot.viewers.TrimeshSceneViewer(resolution=(641, 480))
-viewer.add(robot_model)
-viewer.add(fridge)
-cv = ConstraintViewer(viewer, cm)
-cv.show()
-viewer.show()
-
 solve = True
 
 if solve:
@@ -74,6 +67,13 @@ if solve:
     print(profiler.output_text(unicode=True, color=True, show_all=True))
 else:
     av_seq = av_seq_init
+
+viewer = skrobot.viewers.TrimeshSceneViewer(resolution=(641, 480))
+viewer.add(robot_model)
+viewer.add(fridge)
+cv = ConstraintViewer(viewer, cm)
+cv.show()
+viewer.show()
 
 for av, idx in zip(av_seq, range(len(av_seq))):
     set_robot_config(robot_model, joint_list, av, with_base=with_base)
