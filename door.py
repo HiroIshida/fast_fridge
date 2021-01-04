@@ -18,9 +18,12 @@ def door_open_angle_seq(n_wp, k_start, k_end, angle_open):
     return angles_whole
 
 class Fridge(skrobot.model.RobotModel):
-    def __init__(self):
+    def __init__(self, full_demo):
         super(Fridge, self).__init__()
-        file_name = "./models/fridge.urdf"
+        if full_demo:
+            file_name = "./models/fridge.urdf"
+        else:
+            file_name = "./models/simple_fridge.urdf"
         self.load_urdf_file(file_name)
         self.sdf = UnionSDF.from_robot_model(self)
         axis_offset = -0.03
