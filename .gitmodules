@@ -1,0 +1,3 @@
+[submodule "scikit-robot"]
+	path = scikit-robot
+	url = git@github.com:HiroIshida/scikit-robot.git
