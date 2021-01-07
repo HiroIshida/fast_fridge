@@ -126,6 +126,11 @@ class PoseDependentProblem(object):
             av_seq_init = copy.copy(self.av_seq_cache)
             av_seq_init[:, -3:-1] = traj_planer_wrt_base_now[:, -3:-1]
             av_seq_init[:, -1] += (yaw_now - yaw_pre)
+
+            print("debug==========")
+            print(self.av_seq_cache)
+            print(av_seq_init)
+
             self.debug_av_seq_init_cache = av_seq_init
         else:
             av_current = get_robot_config(self.robot_model, self.joint_list, with_base=True)
@@ -145,6 +150,7 @@ class PoseDependentProblem(object):
             self.viewer.add(self.robot_model)
             self.viewer.add(self.fridge)
             self.cv = ConstraintViewer(self.viewer, self.cm)
+            self.sscc.add_coll_spheres_to_viewer(self.viewer)
             self.cv.show()
             self.viewer.show()
 
@@ -157,6 +163,7 @@ class PoseDependentProblem(object):
             av = av_seq[idx]
             set_robot_config(self.robot_model, self.joint_list, av, with_base=True)
             self.fridge.set_angle(door_angle_seq[idx])
+            self.sscc.update_color()
             self.viewer.redraw()
             time.sleep(0.6)
 
@@ -209,18 +216,18 @@ if __name__=='__main__':
         robot_model.newcoords(co)
         trans, rpy = get_current_pose()
         problem.reset_firdge_pose_from_handle_pose(trans, rpy)
-        print(problem.fridge.worldpos())
         problem.solve(use_sol_cache=use_sol_cache)
 
+    # With viewer, soling is 2x slower
+    solve(False)
     solve(True)
-    problem.vis_sol()
 
     """
     problem.reset_firdge_pose([2.2, 2.2, 0.0])
     av_seq = problem.solve(use_sol_cache=False)
     problem.reset_firdge_pose([2.1, 2.1, 0.0], [0, 0, 0.1])
     av_seq = problem.solve(use_sol_cache=True)
-    #problem.vis_sol(problem.debug_av_seq_init_cache)
+    problem.vis_sol(problem.debug_av_seq_init_cache)
     problem.vis_sol(av_seq)
 
     """
