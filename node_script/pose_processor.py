@@ -39,6 +39,7 @@ if __name__ == '__main__':
     rospy.init_node('dummy_listener', anonymous=True)
     pp = PoseProcessor()
     rate = rospy.Rate(30) # 10hz
+    print("node start")
     while not rospy.is_shutdown():
         pp.publish_handle_pose_msg()
         rate.sleep()
