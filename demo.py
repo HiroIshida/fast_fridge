@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import time
+from pyinstrument import Profiler
 
 import numpy as np
 
@@ -17,6 +18,22 @@ from skrobot.planner.utils import update_fksolver
 from pr2opt_common import *
 from door import Fridge, door_open_angle_seq
 import copy
+
+def bench(func):
+    def wrapper(*args, **kwargs):
+        ts = time.time()
+        func(*args, **kwargs)
+        print("elapsed time : {0}".format(time.time() - ts))
+    return wrapper
+
+def detailbench(func):
+    def wrapper(*args, **kwargs):
+        profiler = Profiler()
+        profiler.start()
+        func(*args, **kwargs)
+        profiler.stop()
+        print(profiler.output_text(unicode=True, color=True, show_all=True))
+    return wrapper
 
 # initialization stuff
 np.random.seed(0)
@@ -55,6 +72,7 @@ class PoseDependentProblem(object):
         self.av_seq_cache = None
 
 
+    @bench
     def solve(self, fridge_pose=None, use_sol_cache=False):
         if fridge_pose is not None:
             trans, rpy = fridge_pose
@@ -111,20 +129,18 @@ class PoseDependentProblem(object):
         co = Coordinates(pos = trans, rot=rot)
         self.fridge.newcoords(co)
 
-n_wp = 12
-k_start = 8
-k_end = 11
-robot_model = pr2_init()
-problem = PoseDependentProblem(robot_model, n_wp, k_start, k_end)
-problem.reset_firdge_pose([2.2, 2.0, 0.0])
-av_seq = problem.solve()
+if __name__=='__main__':
+    with_profile = True
+    n_wp = 12
+    k_start = 8
+    k_end = 11
+    robot_model = pr2_init()
+    problem = PoseDependentProblem(robot_model, n_wp, k_start, k_end)
+    problem.reset_firdge_pose([2.2, 2.0, 0.0])
+    av_seq = problem.solve()
 
-from pyinstrument import Profiler
-profiler = Profiler()
-profiler.start()
-problem.reset_firdge_pose([2.2, 2.2, 0.0])
-av_seq = problem.solve(use_sol_cache=True)
-profiler.stop()
-print(profiler.output_text(unicode=True, color=True, show_all=True))
+    problem.reset_firdge_pose([2.2, 2.2, 0.0])
+    av_seq = problem.solve(use_sol_cache=True)
 
-problem.vis_sol()
+    problem.vis_sol()
+
