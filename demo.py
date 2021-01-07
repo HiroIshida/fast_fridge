@@ -63,15 +63,16 @@ class PoseDependentProblem(object):
             self.fridge.newcoords(co)
 
         av_start = get_robot_config(robot_model, self.joint_list, with_base=True)
-        self.cm.add_eq_configuration(0, av_start)
+        self.cm.add_eq_configuration(0, av_start, force=True)
         sdf_list = self.fridge.gen_door_open_sdf_list(
                 self.n_wp, self.k_start, self.k_end, self.angle_open)
         for idx, pose in self.fridge.gen_door_open_coords(k_start, k_end, self.angle_open):
             self.cm.add_pose_constraint(idx, "r_gripper_tool_frame", pose, force=True)
 
         if use_sol_cache:
-            assert self.av_start is not Non
-            av_seq_init = self.av_start
+            assert (self.av_seq_cache is not None)
+            # TODO make better initial solution using robot's current configuration
+            av_seq_init = copy.copy(self.av_seq_cache)
         else:
             av_current = get_robot_config(self.robot_model, self.joint_list, with_base=True)
             av_seq_init = self.cm.gen_initial_trajectory(av_init=av_current)
@@ -116,6 +117,14 @@ k_end = 11
 robot_model = pr2_init()
 problem = PoseDependentProblem(robot_model, n_wp, k_start, k_end)
 problem.reset_firdge_pose([2.2, 2.0, 0.0])
-
 av_seq = problem.solve()
+
+from pyinstrument import Profiler
+profiler = Profiler()
+profiler.start()
+problem.reset_firdge_pose([2.2, 2.2, 0.0])
+av_seq = problem.solve(use_sol_cache=True)
+profiler.stop()
+print(profiler.output_text(unicode=True, color=True, show_all=True))
+
 problem.vis_sol()
