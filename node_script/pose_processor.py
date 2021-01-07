@@ -51,7 +51,7 @@ class PoseProcessor(object):
             return
         current_position, current_quat = tf_base_to_map
         fridge_pos = np.array([5.7, 7.6, 0.0])
-        handle_pos = fridge_pos + np.array([-0.25, 0.2, 1.07])
+        handle_pos = fridge_pos + np.array([-0.33, 0.23, 1.1])
 
         diff = handle_pos - np.array(current_position)
         current_quat[3] *= -1

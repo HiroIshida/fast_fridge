@@ -10,6 +10,7 @@ from skrobot.model.primitives import Axis
 from skrobot.model.primitives import Box
 from skrobot.coordinates import Coordinates
 from skrobot.coordinates.math import quaternion2rpy
+from skrobot.coordinates import make_coords, rpy_matrix
 from skrobot.planner import tinyfk_sqp_plan_trajectory
 from skrobot.planner import TinyfkSweptSphereSdfCollisionChecker
 from skrobot.planner import ConstraintManager
@@ -112,17 +113,27 @@ class PoseDependentProblem(object):
             self.viewer.add(self.robot_model)
             self.viewer.add(self.fridge)
             self.cv = ConstraintViewer(self.viewer, self.cm)
-            elf.cv.show()
+            self.cv.show()
             self.viewer.show()
 
-        door_angle_seq = door_open_angle_seq(self.n_wp, self.k_start, self.k_end, self.angle_open)
-        for idx in range(self.n_wp):
-            av = self.av_seq_cache[idx]
-            set_robot_config(self.robot_model, self.joint_list, av, with_base=True)
-            self.fridge.set_angle(door_angle_seq[idx])
-            self.viewer.redraw()
-            time.sleep(0.6)
+        if self.av_seq_cache is not None:
+            door_angle_seq = door_open_angle_seq(self.n_wp, self.k_start, self.k_end, self.angle_open)
+            for idx in range(self.n_wp):
+                av = self.av_seq_cache[idx]
+                set_robot_config(self.robot_model, self.joint_list, av, with_base=True)
+                self.fridge.set_angle(door_angle_seq[idx])
+                self.viewer.redraw()
+                time.sleep(0.6)
 
+    def reset_firdge_pose_from_handle_pose(self, trans, rpy=None):
+        if rpy is None:
+            rotmat = None
+        else:
+            rotmat = rpy_matrix(rpy[2], rpy[1], rpy[0]) # actually ypr
+        tf_base2handle = make_coords(pos=trans, rot=rotmat)
+        tf_handle2fridge = self.fridge.tf_fridge2handle.inverse_transformation()
+        tf_base2fridge = tf_base2handle.transform(tf_handle2fridge)
+        self.fridge.newcoords(tf_base2fridge)
 
     def reset_firdge_pose(self, trans, rpy=None):
         if rpy is not None:
@@ -149,13 +160,14 @@ def setup_rosnode():
     return (lambda : pose_current["pose"])
 
 if __name__=='__main__':
-    get_current_pose = setup_rosnode()
-    """
+    #get_current_pose = setup_rosnode()
     n_wp = 12
     k_start = 8
     k_end = 11
     robot_model = pr2_init()
+
     problem = PoseDependentProblem(robot_model, n_wp, k_start, k_end)
+    problem.reset_firdge_pose_from_handle_pose([2.2, 2.0, 1.1], [0, 0, 0.3])
     problem.reset_firdge_pose([2.2, 2.0, 0.0])
     av_seq = problem.solve()
 
@@ -163,4 +175,3 @@ if __name__=='__main__':
     av_seq = problem.solve(use_sol_cache=True)
 
     problem.vis_sol()
-    """
