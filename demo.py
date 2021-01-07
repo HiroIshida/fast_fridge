@@ -6,6 +6,7 @@ import numpy as np
 import skrobot
 from skrobot.model.primitives import Axis
 from skrobot.model.primitives import Box
+from skrobot.coordinates import Coordinates
 from skrobot.planner import tinyfk_sqp_plan_trajectory
 from skrobot.planner import TinyfkSweptSphereSdfCollisionChecker
 from skrobot.planner import ConstraintManager
@@ -14,104 +15,107 @@ from skrobot.planner.utils import get_robot_config
 from skrobot.planner.utils import set_robot_config
 from skrobot.planner.utils import update_fksolver
 from pr2opt_common import *
-from door import Fridge
+from door import Fridge, door_open_angle_seq
 import copy
 
 # initialization stuff
 np.random.seed(0)
-robot_model = pr2_init()
+
+class PoseDependentProblem(object):
+    def __init__(self, robot_model, n_wp, k_start, k_end, angle_open=0.8):
+        joint_list = rarm_joint_list(robot_model)
+        cm = ConstraintManager(n_wp, joint_list, robot_model.fksolver, with_base=True)
+        update_fksolver(robot_model)
+
+        angles = np.linspace(0, angle_open, k_end - k_start + 1)
+
+        fridge = Fridge(full_demo=False)
+        sscc = TinyfkSweptSphereSdfCollisionChecker(fridge.sdf, robot_model)
+        for link in rarm_coll_link_list(robot_model):
+            sscc.add_collision_link(link)
+
+        self.cm = cm
+        self.sscc = sscc
+        self.fridge = fridge
+        self.robot_model = robot_model
+        self.joint_list = joint_list
+
+        # problem parameters
+        self.n_wp = n_wp
+        self.k_start = k_start
+        self.k_end = k_end
+        self.angle_open = angle_open
+        self.ftol = 1e-3
+
+        # visualization stuff
+        self.viewer = None
+        self.constraint_viewer = None
+
+        # cache for MPC
+        self.av_seq_cache = None
 
 
+    def solve(self, fridge_pose=None, use_sol_cache=False):
+        if fridge_pose is not None:
+            trans, rpy = fridge_pose
+            ypr = [rpy[2], rpy[1], rpy[0]]
+            co = Coordinates(pos=trans, rotation=ypr)
+            self.fridge.newcoords(co)
 
-joint_list = rarm_joint_list(robot_model)
+        av_start = get_robot_config(robot_model, self.joint_list, with_base=True)
+        self.cm.add_eq_configuration(0, av_start)
+        sdf_list = self.fridge.gen_door_open_sdf_list(
+                self.n_wp, self.k_start, self.k_end, self.angle_open)
+        for idx, pose in self.fridge.gen_door_open_coords(k_start, k_end, self.angle_open):
+            self.cm.add_pose_constraint(idx, "r_gripper_tool_frame", pose, force=True)
 
-with_base = True
-full_demo = False
-fridge = Fridge(full_demo)
-fridge.translate([2.2, 2.0, 0.0])
+        if use_sol_cache:
+            assert self.av_start is not Non
+            av_seq_init = self.av_start
+        else:
+            av_current = get_robot_config(self.robot_model, self.joint_list, with_base=True)
+            av_seq_init = self.cm.gen_initial_trajectory(av_init=av_current)
 
-# constraint manager
-if full_demo:
-    n_wp = 20
-    cm = ConstraintManager(n_wp, joint_list, robot_model.fksolver, with_base)
-    update_fksolver(robot_model)
-
-    av_start = get_robot_config(robot_model, joint_list, with_base=with_base)
-    cm.add_eq_configuration(0, av_start)
-    cm.add_pose_constraint(n_wp-1, "l_gripper_tool_frame", [1.85, 2.1, 1.0])
-
-    angle_open = 0.8
-    angles = np.linspace(0, angle_open, 5)
-    k_start = 10
-    k_end = 14
-    sdf_list = fridge.gen_door_open_sdf_list(n_wp, k_start, k_end, angle_open)
-    for idx, pose in fridge.gen_door_open_coords(k_start, k_end, angle_open):
-        cm.add_pose_constraint(idx, "r_gripper_tool_frame", pose)
-
-else:
-    n_wp = 12
-    cm = ConstraintManager(n_wp, joint_list, robot_model.fksolver, with_base)
-    update_fksolver(robot_model)
-
-    av_start = get_robot_config(robot_model, joint_list, with_base=with_base)
-    cm.add_eq_configuration(0, av_start)
-
-    angle_open = 0.8
-    angles = np.linspace(0, angle_open, 5)
-    k_start = 8
-    k_end = 11
-    sdf_list = fridge.gen_door_open_sdf_list(n_wp, k_start, k_end, angle_open)
-    for idx, pose in fridge.gen_door_open_coords(k_start, k_end, angle_open):
-        cm.add_pose_constraint(idx, "r_gripper_tool_frame", pose)
-
-def simulate_fridge(idx):
-    if idx>k_start-1 and idx<=k_end:
-        fridge.set_angle(angles[idx-k_start])
-
-
-
-sscc = TinyfkSweptSphereSdfCollisionChecker(sdf_list, robot_model)
-sscc2 = TinyfkSweptSphereSdfCollisionChecker(sdf_list[-1], robot_model)
-for link in rarm_coll_link_list(robot_model):
-    sscc.add_collision_link(link)
-    sscc2.add_collision_link(link)
-av_current = get_robot_config(robot_model, joint_list, with_base=with_base)
-av_seq_init = cm.gen_initial_trajectory(av_init=av_current, collision_checker=sscc2)
-
-solve = True
-
-if solve:
-    from pyinstrument import Profiler
-    profiler = Profiler()
-    profiler.start()
-    slsqp_option = {'ftol': 1e-3, 'disp': True, 'maxiter': 100}
-    av_seq = tinyfk_sqp_plan_trajectory(
-        sscc, cm, av_seq_init, joint_list, n_wp,
-        safety_margin=3e-2, with_base=with_base, slsqp_option=slsqp_option)
-    profiler.stop()
-    print(profiler.output_text(unicode=True, color=True, show_all=True))
-
-    if not full_demo: # MPC
-        ts = time.time()
-        av_seq[0] = av_seq[1]
-        av_seq += 0.05
-        cm.add_eq_configuration(0, av_seq[1], force=True)
+        slsqp_option = {'ftol': self.ftol, 'disp': True, 'maxiter': 100}
         av_seq = tinyfk_sqp_plan_trajectory(
-            sscc, cm, av_seq, joint_list, n_wp,
-            safety_margin=3e-2, with_base=with_base, slsqp_option=slsqp_option)
-        print("elapsed : {}".format(time.time() - ts))
-else:
-    av_seq = av_seq_init
+            self.sscc, self.cm, av_seq_init, self.joint_list, self.n_wp,
+            safety_margin=3e-2, with_base=True, slsqp_option=slsqp_option)
+        self.av_seq_cache = av_seq
+        return av_seq
 
-viewer = skrobot.viewers.TrimeshSceneViewer(resolution=(641, 480))
-viewer.add(robot_model)
-viewer.add(fridge)
-cv = ConstraintViewer(viewer, cm)
-cv.show()
-viewer.show()
+    def vis_sol(self):
+        if self.viewer is None:
+            self.viewer = skrobot.viewers.TrimeshSceneViewer(resolution=(641, 480))
+            self.viewer.add(self.robot_model)
+            self.viewer.add(self.fridge)
+            self.cv = ConstraintViewer(self.viewer, self.cm)
+            self.cv.show()
+            self.viewer.show()
 
-for av, idx in zip(av_seq, range(len(av_seq))):
-    set_robot_config(robot_model, joint_list, av, with_base=with_base)
-    simulate_fridge(idx)
-    viewer.redraw()
-    time.sleep(0.3)
+        door_angle_seq = door_open_angle_seq(self.n_wp, self.k_start, self.k_end, self.angle_open)
+        for idx in range(self.n_wp):
+            av = self.av_seq_cache[idx]
+            set_robot_config(self.robot_model, self.joint_list, av, with_base=True)
+            self.fridge.set_angle(door_angle_seq[idx])
+            self.viewer.redraw()
+            time.sleep(0.3)
+
+
+    def reset_firdge_pose(self, trans, rpy=None):
+        if rpy is not None:
+            ypr = [rpy[2], rpy[1], rpy[0]]
+            rot = rpy_matrix(*ypr)
+        else:
+            rot = None
+        co = Coordinates(pos = trans, rot=rot)
+        self.fridge.newcoords(co)
+
+n_wp = 12
+k_start = 8
+k_end = 11
+robot_model = pr2_init()
+problem = PoseDependentProblem(robot_model, n_wp, k_start, k_end)
+problem.reset_firdge_pose([2.2, 2.0, 0.0])
+
+av_seq = problem.solve()
+problem.vis_sol()
