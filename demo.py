@@ -9,6 +9,7 @@ import skrobot
 from skrobot.model.primitives import Axis
 from skrobot.model.primitives import Box
 from skrobot.coordinates import Coordinates
+from skrobot.coordinates.math import quaternion2rpy
 from skrobot.planner import tinyfk_sqp_plan_trajectory
 from skrobot.planner import TinyfkSweptSphereSdfCollisionChecker
 from skrobot.planner import ConstraintManager
@@ -111,7 +112,7 @@ class PoseDependentProblem(object):
             self.viewer.add(self.robot_model)
             self.viewer.add(self.fridge)
             self.cv = ConstraintViewer(self.viewer, self.cm)
-            self.cv.show()
+            elf.cv.show()
             self.viewer.show()
 
         door_angle_seq = door_open_angle_seq(self.n_wp, self.k_start, self.k_end, self.angle_open)
@@ -137,13 +138,19 @@ def setup_rosnode():
     pose_current = {"pose": None}
 
     def cb_pose(msg):
-        pose_current["pose"] = msg
+        pos_msg = msg.position
+        quat_msg = msg.orientation
+        ypr = quaternion2rpy([quat_msg.w, quat_msg.x, quat_msg.y, quat_msg.z])[0]
+        rpy = [ypr[2], ypr[1], ypr[0]]
+        pos = [pos_msg.x, pos_msg.y, pos_msg.z]
+        pose_current["pose"] = [pos, rpy]
     topic_name = "handle_pose"
     sub = rospy.Subscriber(topic_name, Pose, cb_pose)
     return (lambda : pose_current["pose"])
 
 if __name__=='__main__':
     get_current_pose = setup_rosnode()
+    """
     n_wp = 12
     k_start = 8
     k_end = 11
@@ -156,3 +163,4 @@ if __name__=='__main__':
     av_seq = problem.solve(use_sol_cache=True)
 
     problem.vis_sol()
+    """
