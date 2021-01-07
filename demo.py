@@ -3,6 +3,7 @@ import time
 from pyinstrument import Profiler
 
 import numpy as np
+import rospy
 
 import skrobot
 from skrobot.model.primitives import Axis
@@ -18,6 +19,8 @@ from skrobot.planner.utils import update_fksolver
 from pr2opt_common import *
 from door import Fridge, door_open_angle_seq
 import copy
+
+from geometry_msgs.msg import Pose
 
 def bench(func):
     def wrapper(*args, **kwargs):
@@ -129,8 +132,18 @@ class PoseDependentProblem(object):
         co = Coordinates(pos = trans, rot=rot)
         self.fridge.newcoords(co)
 
+def setup_rosnode():
+    rospy.init_node('planner', anonymous=True)
+    pose_current = {"pose": None}
+
+    def cb_pose(msg):
+        pose_current["pose"] = msg
+    topic_name = "handle_pose"
+    sub = rospy.Subscriber(topic_name, Pose, cb_pose)
+    return (lambda : pose_current["pose"])
+
 if __name__=='__main__':
-    with_profile = True
+    get_current_pose = setup_rosnode()
     n_wp = 12
     k_start = 8
     k_end = 11
@@ -143,4 +156,3 @@ if __name__=='__main__':
     av_seq = problem.solve(use_sol_cache=True)
 
     problem.vis_sol()
-
