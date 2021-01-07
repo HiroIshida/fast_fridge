@@ -45,9 +45,18 @@ class Fridge(skrobot.model.RobotModel):
         return [self.gen_sdf(a) for a in angle_seq]
 
     def gen_door_open_coords(self, k_start, k_end, angle_open):
+        pair_list = []
+
+        k_prepare = k_start - 1
+        prepare_pose = self.prepare_gripper_pose()
+        pair_list.append((k_prepare, prepare_pose))
+
         angle_seq = np.linspace(0, angle_open, k_end - k_start + 1)
         idx_seq = range(k_start, k_end+1)
-        return zip(idx_seq, [self.grasping_gripper_pose(a) for a in angle_seq])
+        for idx, a in zip(idx_seq, angle_seq):
+            pose = self.grasping_gripper_pose(a)
+            pair_list.append((idx, pose))
+        return pair_list
 
     def gen_sdf(self, angle):
         def inner(X):
@@ -56,6 +65,15 @@ class Fridge(skrobot.model.RobotModel):
             self.reset_angle()
             return sd_vals
         return inner
+
+    def prepare_gripper_pose(self):
+        coords = self.axis.copy_worldcoords()
+        coords.translate([-0.1, 0, 0])
+        pos = coords.worldpos()
+        rot = coords.worldrot()
+        ypr = rpy_angle(rot)[0] # skrobot's rpy is ypr
+        rpy = [ypr[2], ypr[1], ypr[0]]
+        return np.hstack([pos, rpy])
 
     def grasping_gripper_pose(self, angle):
         self.set_angle(angle)

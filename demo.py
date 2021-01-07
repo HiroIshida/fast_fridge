@@ -99,7 +99,7 @@ class PoseDependentProblem(object):
             set_robot_config(self.robot_model, self.joint_list, av, with_base=True)
             self.fridge.set_angle(door_angle_seq[idx])
             self.viewer.redraw()
-            time.sleep(0.3)
+            time.sleep(0.6)
 
 
     def reset_firdge_pose(self, trans, rpy=None):
