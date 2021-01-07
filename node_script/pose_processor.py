@@ -8,6 +8,10 @@ from geometry_msgs.msg import PoseWithCovarianceStamped
 import tf
 import utils
 
+from skrobot.coordinates.math import quaternion2rpy, quaternion2matrix
+from skrobot.coordinates import make_coords, rpy_matrix, matrix2quaternion
+from skrobot.coordinates import rpy_angle
+
 class PoseProcessor(object):
     def __init__(self):
         topic_name_detection = "/kinect_head/rgb/ObjectDetection"
@@ -53,12 +57,22 @@ class PoseProcessor(object):
             return
         current_position, current_quat = tf_base_to_map
         #fridge_pos = np.array([5.7, 7.6, 0.0])
+
+        mat = quaternion2matrix([current_quat[3], current_quat[0], current_quat[1], current_quat[2]])
+        robot_pose = make_coords(current_position, mat)
+
         fridge_pos = np.array([6.2, 7.6, 0.0])
         handle_pos = fridge_pos + np.array([-0.33, 0.23, 1.1])
+        handle_pose = make_coords(handle_pos)
+        #pose = handle_pose.inverse_transformation().transform(robot_pose)
 
-        diff = handle_pos - np.array(current_position)
-        current_quat[3] *= -1
-        self.rough_handle_pose = [diff, current_quat]
+
+        pose_diff = robot_pose.inverse_transformation().transform(handle_pose)
+        quat_diff_ = matrix2quaternion(pose_diff.rotation)
+        quat_diff = [quat_diff_[1], quat_diff_[2], quat_diff_[3], quat_diff_[0]]
+        position_diff = pose_diff.worldpos()
+
+        self.rough_handle_pose = [position_diff, quat_diff]
 
 if __name__ == '__main__':
     rospy.init_node('dummy_listener', anonymous=True)

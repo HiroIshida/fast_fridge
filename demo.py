@@ -169,6 +169,7 @@ class PoseDependentProblem(object):
         tf_handle2fridge = self.fridge.tf_fridge2handle.inverse_transformation()
         tf_base2fridge = tf_base2handle.transform(tf_handle2fridge)
         self.fridge.newcoords(tf_base2fridge)
+        self.fridge.reset_angle()
 
     def reset_firdge_pose(self, trans, rpy=None):
         if rpy is not None:
@@ -178,6 +179,7 @@ class PoseDependentProblem(object):
             rot = None
         co = Coordinates(pos = trans, rot=rot)
         self.fridge.newcoords(co)
+        self.fridge.reset_angle()
 
 def setup_rosnode():
     rospy.init_node('planner', anonymous=True)
@@ -195,7 +197,7 @@ def setup_rosnode():
     return (lambda : pose_current["pose"])
 
 if __name__=='__main__':
-    #get_current_pose = setup_rosnode()
+    get_current_pose = setup_rosnode()
     n_wp = 12
     k_start = 8
     k_end = 11
@@ -203,10 +205,17 @@ if __name__=='__main__':
     problem = PoseDependentProblem(robot_model, n_wp, k_start, k_end)
 
     def solve(use_sol_cache=False):
+        co = Coordinates()
+        robot_model.newcoords(co)
         trans, rpy = get_current_pose()
         problem.reset_firdge_pose_from_handle_pose(trans, rpy)
+        print(problem.fridge.worldpos())
         problem.solve(use_sol_cache=use_sol_cache)
 
+    solve(True)
+    problem.vis_sol()
+
+    """
     problem.reset_firdge_pose([2.2, 2.2, 0.0])
     av_seq = problem.solve(use_sol_cache=False)
     problem.reset_firdge_pose([2.1, 2.1, 0.0], [0, 0, 0.1])
@@ -214,3 +223,4 @@ if __name__=='__main__':
     #problem.vis_sol(problem.debug_av_seq_init_cache)
     problem.vis_sol(av_seq)
 
+    """
