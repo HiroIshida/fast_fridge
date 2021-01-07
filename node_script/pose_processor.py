@@ -39,9 +39,11 @@ class PoseProcessor(object):
         if self.handle_pose is not None:
             msg_handle_to_map = utils.convert_tf2posemsg(self.handle_pose)
             self.pub.publish(msg_handle_to_map)
+            print("publish sift")
         elif self.rough_handle_pose is not None:
             msg_handle_to_map = utils.convert_tf2posemsg(self.rough_handle_pose)
             self.pub.publish(msg_handle_to_map)
+            print("publish rough")
 
     def relative_fridge_pose(self):
         try:
@@ -50,7 +52,8 @@ class PoseProcessor(object):
         except:
             return
         current_position, current_quat = tf_base_to_map
-        fridge_pos = np.array([5.7, 7.6, 0.0])
+        #fridge_pos = np.array([5.7, 7.6, 0.0])
+        fridge_pos = np.array([6.2, 7.6, 0.0])
         handle_pos = fridge_pos + np.array([-0.33, 0.23, 1.1])
 
         diff = handle_pos - np.array(current_position)
@@ -62,7 +65,10 @@ if __name__ == '__main__':
     pp = PoseProcessor()
     rate = rospy.Rate(30) # 10hz
     print("node start")
+    import time
     while not rospy.is_shutdown():
         pp.publish_handle_pose_msg()
         pp.relative_fridge_pose()
-        rate.sleep()
+        time.sleep(0.05)
+
+        #rate.sleep()

@@ -160,18 +160,22 @@ def setup_rosnode():
     return (lambda : pose_current["pose"])
 
 if __name__=='__main__':
-    #get_current_pose = setup_rosnode()
+    get_current_pose = setup_rosnode()
     n_wp = 12
     k_start = 8
     k_end = 11
     robot_model = pr2_init()
-
     problem = PoseDependentProblem(robot_model, n_wp, k_start, k_end)
-    problem.reset_firdge_pose_from_handle_pose([2.2, 2.0, 1.1], [0, 0, 0.3])
-    problem.reset_firdge_pose([2.2, 2.0, 0.0])
-    av_seq = problem.solve()
 
+    def solve(use_sol_cache=False):
+        trans, rpy = get_current_pose()
+        problem.reset_firdge_pose_from_handle_pose(trans, rpy)
+        problem.solve(use_sol_cache=use_sol_cache)
+    solve()
+    #problem.vis_sol()
+
+    """
     problem.reset_firdge_pose([2.2, 2.2, 0.0])
     av_seq = problem.solve(use_sol_cache=True)
+    """
 
-    problem.vis_sol()
