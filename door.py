@@ -89,6 +89,12 @@ class Fridge(skrobot.model.RobotModel):
         self.reset_angle()
         return np.hstack([pos, rpy])
 
+    def get_pose3d(self):
+        x, y, z = self.worldpos()
+        ypr = rpy_angle(self.worldrot())[0]
+        pose3d = np.array([x, y, ypr[0]])
+        return pose3d
+
 if __name__=='__main__':
     import time 
     fridge = Fridge()

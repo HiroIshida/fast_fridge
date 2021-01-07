@@ -11,6 +11,7 @@ from skrobot.model.primitives import Box
 from skrobot.coordinates import Coordinates
 from skrobot.coordinates.math import quaternion2rpy
 from skrobot.coordinates import make_coords, rpy_matrix
+from skrobot.coordinates import rpy_angle
 from skrobot.planner import tinyfk_sqp_plan_trajectory
 from skrobot.planner import TinyfkSweptSphereSdfCollisionChecker
 from skrobot.planner import ConstraintManager
@@ -87,6 +88,8 @@ class PoseDependentProblem(object):
         self.av_seq_cache = None
         self.fridge_pose_cache = None # 3dim pose
 
+        self.debug_av_seq_init_cache = None
+
 
     @bench
     def solve(self, fridge_pose=None, use_sol_cache=False):
@@ -106,7 +109,24 @@ class PoseDependentProblem(object):
         if use_sol_cache:
             assert (self.av_seq_cache is not None)
             # TODO make better initial solution using robot's current configuration
+            ts = time.time()
+            tf_base2fridge_now = self.fridge.copy_worldcoords()
+            tf_base2fridge_pre = self.fridge_pose_cache
+
+            # NOTE somehow, in applying to vector, we must take inverse
+            traj_planer = np.zeros((self.n_wp, 3))
+            traj_planer[:, 0] = self.av_seq_cache[:, -3]
+            traj_planer[:, 1] = self.av_seq_cache[:, -2] # world
+            traj_planer_wrt_fridge = tf_base2fridge_pre.inverse_transformation().transform_vector(traj_planer)
+            traj_planer_wrt_base_now = tf_base2fridge_now.transform_vector(traj_planer_wrt_fridge)
+
+            yaw_now = rpy_angle(tf_base2fridge_now.worldrot())[0][0]
+            yaw_pre = rpy_angle(tf_base2fridge_pre.worldrot())[0][0]
+
             av_seq_init = copy.copy(self.av_seq_cache)
+            av_seq_init[:, -3:-1] = traj_planer_wrt_base_now[:, -3:-1]
+            av_seq_init[:, -1] += (yaw_now - yaw_pre)
+            self.debug_av_seq_init_cache = av_seq_init
         else:
             av_current = get_robot_config(self.robot_model, self.joint_list, with_base=True)
             av_seq_init = self.cm.gen_initial_trajectory(av_init=av_current)
@@ -116,6 +136,7 @@ class PoseDependentProblem(object):
             self.sscc, self.cm, av_seq_init, self.joint_list, self.n_wp,
             safety_margin=3e-2, with_base=True, slsqp_option=slsqp_option)
         self.av_seq_cache = av_seq
+        self.fridge_pose_cache = self.fridge.copy_worldcoords()
         return av_seq
 
     def vis_sol(self, av_seq=None):
@@ -174,7 +195,7 @@ def setup_rosnode():
     return (lambda : pose_current["pose"])
 
 if __name__=='__main__':
-    get_current_pose = setup_rosnode()
+    #get_current_pose = setup_rosnode()
     n_wp = 12
     k_start = 8
     k_end = 11
@@ -188,6 +209,8 @@ if __name__=='__main__':
 
     problem.reset_firdge_pose([2.2, 2.2, 0.0])
     av_seq = problem.solve(use_sol_cache=False)
-    transform_av_seq(av_seq, [0.0, 0.0, 0.3])
+    problem.reset_firdge_pose([2.1, 2.1, 0.0], [0, 0, 0.1])
+    av_seq = problem.solve(use_sol_cache=True)
+    #problem.vis_sol(problem.debug_av_seq_init_cache)
     problem.vis_sol(av_seq)
 
