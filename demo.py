@@ -24,20 +24,30 @@ import copy
 
 from geometry_msgs.msg import Pose
 
+def transform_av_seq(av_seq, _transform3d):
+    # 2dim trans
+    # 1dim rot
+    transform3d = np.array(_transform3d)
+    for av in av_seq:
+        av[-3:-1] += transform3d[-3:-1]
+        av[-1] += transform3d[-1]
+
 def bench(func):
     def wrapper(*args, **kwargs):
         ts = time.time()
-        func(*args, **kwargs)
+        ret = func(*args, **kwargs)
         print("elapsed time : {0}".format(time.time() - ts))
+        return ret
     return wrapper
 
 def detailbench(func):
     def wrapper(*args, **kwargs):
         profiler = Profiler()
         profiler.start()
-        func(*args, **kwargs)
+        ret = func(*args, **kwargs)
         profiler.stop()
         print(profiler.output_text(unicode=True, color=True, show_all=True))
+        return ret
     return wrapper
 
 # initialization stuff
@@ -75,6 +85,7 @@ class PoseDependentProblem(object):
 
         # cache for MPC
         self.av_seq_cache = None
+        self.fridge_pose_cache = None # 3dim pose
 
 
     @bench
@@ -107,7 +118,7 @@ class PoseDependentProblem(object):
         self.av_seq_cache = av_seq
         return av_seq
 
-    def vis_sol(self):
+    def vis_sol(self, av_seq=None):
         if self.viewer is None:
             self.viewer = skrobot.viewers.TrimeshSceneViewer(resolution=(641, 480))
             self.viewer.add(self.robot_model)
@@ -116,14 +127,17 @@ class PoseDependentProblem(object):
             self.cv.show()
             self.viewer.show()
 
-        if self.av_seq_cache is not None:
-            door_angle_seq = door_open_angle_seq(self.n_wp, self.k_start, self.k_end, self.angle_open)
-            for idx in range(self.n_wp):
-                av = self.av_seq_cache[idx]
-                set_robot_config(self.robot_model, self.joint_list, av, with_base=True)
-                self.fridge.set_angle(door_angle_seq[idx])
-                self.viewer.redraw()
-                time.sleep(0.6)
+        if av_seq is None:
+            assert self.av_seq_cache is not None
+            av_seq = self.av_seq_cache
+
+        door_angle_seq = door_open_angle_seq(self.n_wp, self.k_start, self.k_end, self.angle_open)
+        for idx in range(self.n_wp):
+            av = av_seq[idx]
+            set_robot_config(self.robot_model, self.joint_list, av, with_base=True)
+            self.fridge.set_angle(door_angle_seq[idx])
+            self.viewer.redraw()
+            time.sleep(0.6)
 
     def reset_firdge_pose_from_handle_pose(self, trans, rpy=None):
         if rpy is None:
@@ -171,11 +185,9 @@ if __name__=='__main__':
         trans, rpy = get_current_pose()
         problem.reset_firdge_pose_from_handle_pose(trans, rpy)
         problem.solve(use_sol_cache=use_sol_cache)
-    solve()
-    #problem.vis_sol()
 
-    """
     problem.reset_firdge_pose([2.2, 2.2, 0.0])
-    av_seq = problem.solve(use_sol_cache=True)
-    """
+    av_seq = problem.solve(use_sol_cache=False)
+    transform_av_seq(av_seq, [0.0, 0.0, 0.3])
+    problem.vis_sol(av_seq)
 
