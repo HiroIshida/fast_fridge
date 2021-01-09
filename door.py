@@ -26,7 +26,7 @@ class Fridge(skrobot.model.RobotModel):
             file_name = "./models/simple_fridge.urdf"
         self.load_urdf_file(file_name)
         self.sdf = UnionSDF.from_robot_model(self)
-        axis_offset = -0.03
+        axis_offset = -0.0
 
         axis = Axis(axis_length=0.2)
         self.handle_link.assoc(axis, relative_coords=axis)
@@ -72,7 +72,7 @@ class Fridge(skrobot.model.RobotModel):
 
     def prepare_gripper_pose(self):
         coords = self.axis.copy_worldcoords()
-        coords.translate([-0.1, 0, 0])
+        coords.translate([-0.00, 0, 0])
         pos = coords.worldpos()
         rot = coords.worldrot()
         ypr = rpy_angle(rot)[0] # skrobot's rpy is ypr
