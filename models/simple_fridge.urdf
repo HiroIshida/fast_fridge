@@ -14,6 +14,22 @@
          <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.75"/>
       </collision>
    </link>
+
+   <link name="desk_link">
+      <visual>
+         <geometry>
+            <box size="0.8 1.2 0.7"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.35"/>
+      </visual>
+      <collision>
+         <geometry>
+            <box size="0.8 1.2 0.7"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.35"/>
+      </collision>
+   </link>
+
    <link name="door_link">
       <visual>
          <geometry>
@@ -48,5 +64,12 @@
       <child link="handle_link"/>
       <axis xyz="0 0 1"/>
       <origin rpy="0 0 0" xyz="-0.03 0.49 0.25"/>
+   </joint>
+
+   <joint name="desk_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="desk_link"/>
+      <axis xyz="0 0 1"/>
+      <origin rpy="0 0 0" xyz="-2.3 0.8 0.0"/>
    </joint>
 </robot>
