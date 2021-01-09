@@ -93,7 +93,7 @@ class PoseDependentProblem(object):
         self.debug_av_seq_init_cache = None
 
         # cmd ri
-        self.duration = 0.75
+        self.duration = 0.8
 
     def send_cmd_to_ri(self, ri):
         self.robot_model.fksolver = None
@@ -244,9 +244,10 @@ if __name__=='__main__':
         problem.solve(use_sol_cache=use_sol_cache)
 
     def solve_in_simulater(use_sol_cache=False):
-        problem.reset_firdge_pose([2.2, 2.2, 0.0])
+        problem.reset_firdge_pose([1.5, 1.5, 0.0])
         av_seq = problem.solve(use_sol_cache=use_sol_cache)
 
+    #problem.debug_view()
     #solve_in_simulater()
 
     robot_model2 = pr2_init()
@@ -259,6 +260,6 @@ if __name__=='__main__':
 
     ri.move_gripper("rarm", pos=0.06)
     problem.send_cmd_to_ri(ri)
-    time.sleep(problem.duration * (problem.k_start-1.5))
+    time.sleep(problem.duration * (problem.k_start-1.3))
     ri.move_gripper("rarm", pos=0)
     #problem.vis_sol()
