@@ -9,7 +9,7 @@
       </visual>
       <collision>
          <geometry>
-            <box size="0.57 2.0 1.5"/>
+            <box size="0.57 0.53 1.5"/>
          </geometry>
          <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.75"/>
       </collision>
@@ -18,15 +18,30 @@
    <link name="desk_link">
       <visual>
          <geometry>
-            <box size="0.8 1.2 0.7"/>
+            <box size="0.8 1.2 0.1"/>
          </geometry>
-         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.35"/>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.7"/>
       </visual>
       <collision>
          <geometry>
-            <box size="0.8 1.2 0.7"/>
+            <box size="0.8 1.2 0.1"/>
          </geometry>
-         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.35"/>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.7"/>
+      </collision>
+   </link>
+
+   <link name="obstacle_link">
+      <visual>
+         <geometry>
+            <box size="0.5 2.0 1.7"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.85"/>
+      </visual>
+      <collision>
+         <geometry>
+            <box size="0.5 2.0 1.7"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.85"/>
       </collision>
    </link>
 
@@ -71,5 +86,12 @@
       <child link="desk_link"/>
       <axis xyz="0 0 1"/>
       <origin rpy="0 0 0" xyz="-2.3 0.8 0.0"/>
+   </joint>
+
+   <joint name="obstacle_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="obstacle_link"/>
+      <axis xyz="0 0 1"/>
+      <origin rpy="0 0 0" xyz="-0.15 1.4 0.0"/>
    </joint>
 </robot>
