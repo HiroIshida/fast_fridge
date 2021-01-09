@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import time
 from pyinstrument import Profiler
+import pickle
 
 import numpy as np
 import rospy
@@ -71,6 +72,7 @@ class PoseDependentProblem(object):
         self.sscc = sscc
         self.fridge = fridge
         self.robot_model = robot_model
+
         self.joint_list = joint_list
 
         # problem parameters
@@ -90,6 +92,18 @@ class PoseDependentProblem(object):
 
         self.debug_av_seq_init_cache = None
 
+    def send_cmd_to_ri(self, ri):
+        self.robot_model.fksolver = None
+        base_pose_seq = self.av_seq_cache[:, -3:]
+
+        full_av_seq = []
+        for av in self.av_seq_cache:
+            set_robot_config(self.robot_model, self.joint_list, av, with_base=True)
+            full_av_seq.append(self.robot_model.angle_vector())
+
+        time_seq = [1.0]*self.n_wp
+        ri.angle_vector_sequence(full_av_seq, time_seq)
+        #ri.move_trajectory_sequence(base_pose_seq, time_seq, send_action=True)
 
     @bench
     def solve(self, fridge_pose=None, use_sol_cache=False):
@@ -143,6 +157,14 @@ class PoseDependentProblem(object):
         self.av_seq_cache = av_seq
         self.fridge_pose_cache = self.fridge.copy_worldcoords()
         return av_seq
+
+    def debug_view(self):
+        if self.viewer is None:
+            self.viewer = skrobot.viewers.TrimeshSceneViewer(resolution=(641, 480))
+            self.viewer.add(self.robot_model)
+            self.viewer.add(self.fridge)
+            self.sscc.add_coll_spheres_to_viewer(self.viewer)
+            self.viewer.show()
 
     def vis_sol(self, av_seq=None):
         if self.viewer is None:
@@ -218,9 +240,31 @@ if __name__=='__main__':
         problem.reset_firdge_pose_from_handle_pose(trans, rpy)
         problem.solve(use_sol_cache=use_sol_cache)
 
-    # With viewer, soling is 2x slower
+    def solve_in_simulater(use_sol_cache=False):
+        problem.reset_firdge_pose([2.2, 2.2, 0.0])
+        av_seq = problem.solve(use_sol_cache=use_sol_cache)
+
+    robot_model2 = pr2_init()
+    robot_model2.fksolver = None
+    ri = skrobot.interfaces.ros.PR2ROSRobotInterface(robot_model2)
+
+    trans, rpy = get_current_pose()
+    problem.reset_firdge_pose_from_handle_pose(trans, rpy)
     solve(False)
-    solve(True)
+
+    problem.send_cmd_to_ri(ri)
+    #problem.vis_sol()
+
+
+    """
+    av_seq_full = problem.dump_full_av_seq()
+
+    import time
+    for av_full in av_seq_full:
+        ri.angle_vector(av_full, time=1.0, time_scale=1.0)
+        time.sleep(0.5)
+    """
+
 
     """
     problem.reset_firdge_pose([2.2, 2.2, 0.0])
@@ -229,5 +273,6 @@ if __name__=='__main__':
     av_seq = problem.solve(use_sol_cache=True)
     problem.vis_sol(problem.debug_av_seq_init_cache)
     problem.vis_sol(av_seq)
-
     """
+
+
