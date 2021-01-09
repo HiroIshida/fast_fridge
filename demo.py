@@ -92,6 +92,9 @@ class PoseDependentProblem(object):
 
         self.debug_av_seq_init_cache = None
 
+        # cmd ri
+        self.duration = 0.75
+
     def send_cmd_to_ri(self, ri):
         self.robot_model.fksolver = None
         base_pose_seq = self.av_seq_cache[:, -3:]
@@ -101,9 +104,9 @@ class PoseDependentProblem(object):
             set_robot_config(self.robot_model, self.joint_list, av, with_base=True)
             full_av_seq.append(self.robot_model.angle_vector())
 
-        time_seq = [1.0]*self.n_wp
+        time_seq = [self.duration]*self.n_wp
         ri.angle_vector_sequence(full_av_seq, time_seq)
-        #ri.move_trajectory_sequence(base_pose_seq, time_seq, send_action=True)
+        ri.move_trajectory_sequence(base_pose_seq, time_seq, send_action=True)
 
     @bench
     def solve(self, fridge_pose=None, use_sol_cache=False):
@@ -244,6 +247,8 @@ if __name__=='__main__':
         problem.reset_firdge_pose([2.2, 2.2, 0.0])
         av_seq = problem.solve(use_sol_cache=use_sol_cache)
 
+    #solve_in_simulater()
+
     robot_model2 = pr2_init()
     robot_model2.fksolver = None
     ri = skrobot.interfaces.ros.PR2ROSRobotInterface(robot_model2)
@@ -252,27 +257,8 @@ if __name__=='__main__':
     problem.reset_firdge_pose_from_handle_pose(trans, rpy)
     solve(False)
 
+    ri.move_gripper("rarm", pos=0.06)
     problem.send_cmd_to_ri(ri)
+    time.sleep(problem.duration * (problem.k_start-1.5))
+    ri.move_gripper("rarm", pos=0)
     #problem.vis_sol()
-
-
-    """
-    av_seq_full = problem.dump_full_av_seq()
-
-    import time
-    for av_full in av_seq_full:
-        ri.angle_vector(av_full, time=1.0, time_scale=1.0)
-        time.sleep(0.5)
-    """
-
-
-    """
-    problem.reset_firdge_pose([2.2, 2.2, 0.0])
-    av_seq = problem.solve(use_sol_cache=False)
-    problem.reset_firdge_pose([2.1, 2.1, 0.0], [0, 0, 0.1])
-    av_seq = problem.solve(use_sol_cache=True)
-    problem.vis_sol(problem.debug_av_seq_init_cache)
-    problem.vis_sol(av_seq)
-    """
-
-
