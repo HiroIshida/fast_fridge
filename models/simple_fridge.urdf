@@ -85,7 +85,7 @@
       <parent link="base_link"/>
       <child link="desk_link"/>
       <axis xyz="0 0 1"/>
-      <origin rpy="0 0 0" xyz="-2.3 0.8 0.0"/>
+      <origin rpy="0 0 0" xyz="-2.1 0.8 0.0"/>
    </joint>
 
    <joint name="obstacle_joint" type="fixed">

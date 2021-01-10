@@ -82,7 +82,7 @@ class PoseProcessor(object):
         mat = quaternion2matrix([current_quat[3], current_quat[0], current_quat[1], current_quat[2]])
         robot_pose = make_coords(current_position, mat)
 
-        fridge_pos = np.array([6.2, 7.6, 0.0])
+        fridge_pos = np.array([5.7, 7.6, 0.0])
         handle_pos = fridge_pos + np.array([-0.33, 0.23, 1.1])
         handle_pose = make_coords(handle_pos)
         #pose = handle_pose.inverse_transformation().transform(robot_pose)
