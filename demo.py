@@ -112,12 +112,6 @@ class PoseDependentProblem(object):
         ri.angle_vector_sequence(full_av_seq, time_seq)
         ri.move_trajectory_sequence(base_pose_seq, time_seq, send_action=True)
 
-    def set_sol_cache(self, av_seq):
-        n_wp, n_dof = av_seq.shape
-        assert self.n_wp == n_wp
-        assert self.n_dof == len(self.joint_list) + (3 if self.with_base else 0)
-        self.av_seq_cache = av_seq
-
     def load_sol_cache(self, name="sol_cache.dill"):
         with open(name, "rb") as f:
             data = dill.load(f)
