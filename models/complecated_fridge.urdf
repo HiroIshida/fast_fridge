@@ -83,7 +83,7 @@
 
    <joint name="base_back_joint" type="fixed">
       <parent link="base_link"/>
-      <child link="base_link_top"/>
+      <child link="base_link_back"/>
       <axis xyz="0 0 1"/>
       <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
    </joint>
