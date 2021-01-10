@@ -63,7 +63,7 @@ class PoseDependentProblem(object):
 
         angles = np.linspace(0, angle_open, k_end - k_start + 1)
 
-        fridge = Fridge(full_demo=False)
+        fridge = Fridge(full_demo=True)
         sscc = TinyfkSweptSphereSdfCollisionChecker(fridge.sdf, robot_model)
         sscc_for_initial_trajectory = TinyfkSweptSphereSdfCollisionChecker(fridge.sdf, robot_model)
         for link in rarm_coll_link_list(robot_model):
@@ -113,7 +113,7 @@ class PoseDependentProblem(object):
         ri.move_trajectory_sequence(base_pose_seq, time_seq, send_action=True)
 
     @bench
-    def solve(self, fridge_pose=None, use_sol_cache=False, maxiter=100):
+    def solve(self, fridge_pose=None, use_sol_cache=False, maxiter=100, only_ik=False):
         if fridge_pose is not None:
             trans, rpy = fridge_pose
             ypr = [rpy[2], rpy[1], rpy[0]]
@@ -127,6 +127,14 @@ class PoseDependentProblem(object):
         self.sscc.set_sdf(sdf_list)
         for idx, pose in self.fridge.gen_door_open_coords(k_start, k_end, self.angle_open):
             self.cm.add_pose_constraint(idx, "r_gripper_tool_frame", pose, force=True)
+
+        # add left arm constraint 
+        co_fridge_inside = self.fridge.copy_worldcoords()
+        co_fridge_inside.translate([0.0, 0.0, 1.2])
+        trans = co_fridge_inside.worldpos()
+        #rpy = rpy_angle(co_fridge_inside.worldrot())[0]
+        self.cm.add_pose_constraint(
+            self.n_wp-1, "l_gripper_tool_frame", trans, force=True)
 
         if use_sol_cache:
             assert (self.av_seq_cache is not None)
@@ -152,9 +160,14 @@ class PoseDependentProblem(object):
             self.debug_av_seq_init_cache = av_seq_init
         else:
             av_current = get_robot_config(self.robot_model, self.joint_list, with_base=True)
-            self.sscc_for_initial_trajectory.set_sdf = sdf_list[-1]
+            self.sscc_for_initial_trajectory.set_sdf(sdf_list[-1])
             av_seq_init = self.cm.gen_initial_trajectory(
                 av_init=av_current, collision_checker=self.sscc_for_initial_trajectory)
+
+        if only_ik:
+            set_robot_config(self.robot_model, self.joint_list, av_seq_init[-1], with_base=True)
+            return
+
 
         slsqp_option = {'ftol': self.ftol, 'disp': False, 'maxiter': maxiter}
         res = tinyfk_sqp_plan_trajectory(
@@ -175,6 +188,8 @@ class PoseDependentProblem(object):
             self.viewer = skrobot.viewers.TrimeshSceneViewer(resolution=(641, 480))
             self.viewer.add(self.robot_model)
             self.viewer.add(self.fridge)
+            self.cv = ConstraintViewer(self.viewer, self.cm)
+            self.cv.show()
             self.sscc.add_coll_spheres_to_viewer(self.viewer)
             self.viewer.show()
 
@@ -239,7 +254,7 @@ def setup_rosnode():
 
 if __name__=='__main__':
     #get_current_pose = setup_rosnode()
-    n_wp = 12
+    n_wp = 16
     k_start = 8
     k_end = 11
     robot_model = pr2_init()
@@ -252,12 +267,12 @@ if __name__=='__main__':
         problem.reset_firdge_pose_from_handle_pose(trans, rpy)
         problem.solve(use_sol_cache=use_sol_cache, maxiter=maxiter)
 
-    def solve_in_simulater(use_sol_cache=False):
+    def solve_in_simulater(use_sol_cache=False, only_ik=False):
         problem.reset_firdge_pose([2.0, 1.5, 0.0])
-        av_seq = problem.solve(use_sol_cache=use_sol_cache, maxiter=100)
+        av_seq = problem.solve(use_sol_cache=use_sol_cache, maxiter=100, only_ik=only_ik)
 
-    solve_in_simulater(use_sol_cache=False)
-    problem.debug_view()
+    solve_in_simulater(use_sol_cache=False, only_ik=True)
+    #problem.debug_view()
     #solve_in_simulater(use_sol_cache=True)
 
     """
