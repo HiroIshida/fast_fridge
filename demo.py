@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import time
 from pyinstrument import Profiler
-import pickle
+import dill
 
 import numpy as np
 import rospy
@@ -111,6 +111,25 @@ class PoseDependentProblem(object):
         time_seq = [self.duration]*self.n_wp
         ri.angle_vector_sequence(full_av_seq, time_seq)
         ri.move_trajectory_sequence(base_pose_seq, time_seq, send_action=True)
+
+    def set_sol_cache(self, av_seq):
+        n_wp, n_dof = av_seq.shape
+        assert self.n_wp == n_wp
+        assert self.n_dof == len(self.joint_list) + (3 if self.with_base else 0)
+        self.av_seq_cache = av_seq
+
+    def load_sol_cache(self, name="sol_cache.dill"):
+        with open(name, "rb") as f:
+            data = dill.load(f)
+            self.av_seq_cache = data["av_seq_cache"]
+            self.fridge_pose_cache = data["fridge_pose_cache"]
+
+    def dump_sol_cache(self, name="sol_cache.dill"):
+        assert (self.av_seq_cache is not None)
+        data = {"av_seq_cache": self.av_seq_cache,
+                "fridge_pose_cache": self.fridge_pose_cache}
+        with open(name, "wb") as f:
+            dill.dump(data, f)
 
     @bench
     def solve(self, fridge_pose=None, use_sol_cache=False, maxiter=100, only_ik=False):
