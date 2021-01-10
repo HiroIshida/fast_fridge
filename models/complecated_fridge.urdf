@@ -1,0 +1,185 @@
+<?xml version="1.0" ?>
+<robot name="myrobot">
+   <link name="base_link">
+      <visual>
+         <geometry>
+            <box size="0.57 0.53 0.03"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.0"/>
+      </visual>
+      <collision>
+         <geometry>
+            <box size="0.57 0.53 0.03"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.0"/>
+      </collision>
+   </link>
+
+   <joint name="base_top_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="base_link_top"/>
+      <axis xyz="0 0 1"/>
+      <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+   </joint>
+
+   <link name="base_link_top">
+      <visual>
+         <geometry>
+            <box size="0.57 0.53 0.03"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 1.5"/>
+      </visual>
+      <collision>
+         <geometry>
+            <box size="0.57 0.53 0.03"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 1.5"/>
+      </collision>
+   </link>
+
+   <joint name="base_left_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="base_link_left"/>
+      <axis xyz="0 0 1"/>
+      <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+   </joint>
+
+   <link name="base_link_left">
+      <visual>
+         <geometry>
+            <box size="0.57 0.03 1.5"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.265 0.75"/>
+      </visual>
+      <collision>
+         <geometry>
+            <box size="0.57 0.03 1.5"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.265 0.75"/>
+      </collision>
+   </link>
+
+   <joint name="base_right_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="base_link_right"/>
+      <axis xyz="0 0 1"/>
+      <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+   </joint>
+
+   <link name="base_link_right">
+      <visual>
+         <geometry>
+            <box size="0.57 0.03 1.5"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 -0.265 0.75"/>
+      </visual>
+      <collision>
+         <geometry>
+            <box size="0.57 0.03 1.5"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 -0.265 0.75"/>
+      </collision>
+   </link>
+
+   <joint name="base_back_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="base_link_top"/>
+      <axis xyz="0 0 1"/>
+      <origin rpy="0 0 0" xyz="0.0 0.0 0.0"/>
+   </joint>
+
+   <link name="base_link_back">
+      <visual>
+         <geometry>
+            <box size="0.03 0.56 1.5"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.285 0.0 0.75"/>
+      </visual>
+      <collision>
+         <geometry>
+            <box size="0.03 0.56 1.5"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.285 0.0 0.75"/>
+      </collision>
+   </link>
+
+   <link name="desk_link">
+      <visual>
+         <geometry>
+            <box size="0.8 1.2 0.1"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.7"/>
+      </visual>
+      <collision>
+         <geometry>
+            <box size="0.8 1.2 0.1"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.7"/>
+      </collision>
+   </link>
+
+   <link name="obstacle_link">
+      <visual>
+         <geometry>
+            <box size="0.5 2.0 1.7"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.85"/>
+      </visual>
+      <collision>
+         <geometry>
+            <box size="0.5 2.0 1.7"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.85"/>
+      </collision>
+   </link>
+
+   <link name="door_link">
+      <visual>
+         <geometry>
+            <box size="0.03 0.53 0.67"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.265 0.335"/>
+      </visual>
+      <collision>
+         <geometry>
+            <box size="0.03 0.53 0.67"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.265 0.335"/>
+      </collision>
+   </link>
+   <link name="handle_link">
+      <visual>
+         <geometry>
+            <box size="0.05 0.02 0.2"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.0"/>
+      </visual>
+   </link>
+   <joint name="door_joint" type="revolute">
+      <parent link="base_link"/>
+      <child link="door_link"/>
+      <axis xyz="0 0 1"/>
+      <origin rpy="0 0 0" xyz="-0.285 -0.265 0.83"/>
+      <limit effort="1.0" lower="0.0" upper="2.0" velocity="2.0"/>
+   </joint>
+   <joint name="handle_joint" type="fixed">
+      <parent link="door_link"/>
+      <child link="handle_link"/>
+      <axis xyz="0 0 1"/>
+      <origin rpy="0 0 0" xyz="-0.03 0.49 0.25"/>
+   </joint>
+
+   <joint name="desk_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="desk_link"/>
+      <axis xyz="0 0 1"/>
+      <origin rpy="0 0 0" xyz="-2.1 0.8 0.0"/>
+   </joint>
+
+   <joint name="obstacle_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="obstacle_link"/>
+      <axis xyz="0 0 1"/>
+      <origin rpy="0 0 0" xyz="-0.15 1.4 0.0"/>
+   </joint>
+</robot>
