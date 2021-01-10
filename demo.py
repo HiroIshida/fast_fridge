@@ -65,11 +65,15 @@ class PoseDependentProblem(object):
 
         fridge = Fridge(full_demo=False)
         sscc = TinyfkSweptSphereSdfCollisionChecker(fridge.sdf, robot_model)
+        sscc_for_initial_trajectory = TinyfkSweptSphereSdfCollisionChecker(fridge.sdf, robot_model)
         for link in rarm_coll_link_list(robot_model):
             sscc.add_collision_link(link)
+            sscc_for_initial_trajectory.add_collision_link(link)
 
         self.cm = cm
         self.sscc = sscc
+        self.sscc_for_initial_trajectory = sscc_for_initial_trajectory
+
         self.fridge = fridge
         self.robot_model = robot_model
 
@@ -120,6 +124,7 @@ class PoseDependentProblem(object):
         self.cm.add_eq_configuration(0, av_start, force=True)
         sdf_list = self.fridge.gen_door_open_sdf_list(
                 self.n_wp, self.k_start, self.k_end, self.angle_open)
+        self.sscc.set_sdf(sdf_list)
         for idx, pose in self.fridge.gen_door_open_coords(k_start, k_end, self.angle_open):
             self.cm.add_pose_constraint(idx, "r_gripper_tool_frame", pose, force=True)
 
@@ -147,7 +152,9 @@ class PoseDependentProblem(object):
             self.debug_av_seq_init_cache = av_seq_init
         else:
             av_current = get_robot_config(self.robot_model, self.joint_list, with_base=True)
-            av_seq_init = self.cm.gen_initial_trajectory(av_init=av_current)
+            self.sscc_for_initial_trajectory.set_sdf = sdf_list[-1]
+            av_seq_init = self.cm.gen_initial_trajectory(
+                av_init=av_current, collision_checker=self.sscc_for_initial_trajectory)
 
         slsqp_option = {'ftol': self.ftol, 'disp': False, 'maxiter': maxiter}
         res = tinyfk_sqp_plan_trajectory(
@@ -231,7 +238,7 @@ def setup_rosnode():
     return (lambda : pose_current["pose"])
 
 if __name__=='__main__':
-    get_current_pose = setup_rosnode()
+    #get_current_pose = setup_rosnode()
     n_wp = 12
     k_start = 8
     k_end = 11
@@ -246,12 +253,14 @@ if __name__=='__main__':
         problem.solve(use_sol_cache=use_sol_cache, maxiter=maxiter)
 
     def solve_in_simulater(use_sol_cache=False):
-        problem.reset_firdge_pose([1.5, 1.5, 0.0])
-        av_seq = problem.solve(use_sol_cache=use_sol_cache)
+        problem.reset_firdge_pose([2.0, 1.5, 0.0])
+        av_seq = problem.solve(use_sol_cache=use_sol_cache, maxiter=100)
 
-    #problem.debug_view()
-    #solve_in_simulater()
+    solve_in_simulater(use_sol_cache=False)
+    problem.debug_view()
+    #solve_in_simulater(use_sol_cache=True)
 
+    """
     robot_model2 = pr2_init()
     robot_model2.fksolver = None
     ri = skrobot.interfaces.ros.PR2ROSRobotInterface(robot_model2)
@@ -265,3 +274,4 @@ if __name__=='__main__':
     time.sleep(problem.duration * (problem.k_start-1.3))
     ri.move_gripper("rarm", pos=0)
     #problem.vis_sol()
+    """

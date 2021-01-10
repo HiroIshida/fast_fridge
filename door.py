@@ -21,7 +21,7 @@ class Fridge(skrobot.model.RobotModel):
     def __init__(self, full_demo):
         super(Fridge, self).__init__()
         if full_demo:
-            file_name = "./models/fridge.urdf"
+            file_name = "./models/complecated_fridge.urdf"
         else:
             file_name = "./models/simple_fridge.urdf"
         self.load_urdf_file(file_name)
