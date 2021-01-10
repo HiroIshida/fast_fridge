@@ -199,7 +199,7 @@ class PoseDependentProblem(object):
             self.viewer.add(self.robot_model)
             self.viewer.add(self.fridge)
             self.cv = ConstraintViewer(self.viewer, self.cm)
-            self.sscc.add_coll_spheres_to_viewer(self.viewer)
+            #self.sscc.add_coll_spheres_to_viewer(self.viewer)
             self.cv.show()
             self.viewer.show()
 
@@ -212,7 +212,7 @@ class PoseDependentProblem(object):
             av = av_seq[idx]
             set_robot_config(self.robot_model, self.joint_list, av, with_base=True)
             self.fridge.set_angle(door_angle_seq[idx])
-            self.sscc.update_color()
+            #self.sscc.update_color()
             self.viewer.redraw()
             time.sleep(0.6)
 
@@ -271,7 +271,7 @@ if __name__=='__main__':
         problem.reset_firdge_pose([2.0, 1.5, 0.0])
         av_seq = problem.solve(use_sol_cache=use_sol_cache, maxiter=100, only_ik=only_ik)
 
-    solve_in_simulater(use_sol_cache=False, only_ik=True)
+    solve_in_simulater(use_sol_cache=False, only_ik=False)
     #problem.debug_view()
     #solve_in_simulater(use_sol_cache=True)
 
