@@ -109,7 +109,7 @@ class PoseDependentProblem(object):
         ri.move_trajectory_sequence(base_pose_seq, time_seq, send_action=True)
 
     @bench
-    def solve(self, fridge_pose=None, use_sol_cache=False):
+    def solve(self, fridge_pose=None, use_sol_cache=False, maxiter=100):
         if fridge_pose is not None:
             trans, rpy = fridge_pose
             ypr = [rpy[2], rpy[1], rpy[0]]
@@ -144,21 +144,23 @@ class PoseDependentProblem(object):
             av_seq_init[:, -3:-1] = traj_planer_wrt_base_now[:, -3:-1]
             av_seq_init[:, -1] += (yaw_now - yaw_pre)
 
-            print("debug==========")
-            print(self.av_seq_cache)
-            print(av_seq_init)
-
             self.debug_av_seq_init_cache = av_seq_init
         else:
             av_current = get_robot_config(self.robot_model, self.joint_list, with_base=True)
             av_seq_init = self.cm.gen_initial_trajectory(av_init=av_current)
 
-        slsqp_option = {'ftol': self.ftol, 'disp': True, 'maxiter': 100}
-        av_seq = tinyfk_sqp_plan_trajectory(
+        slsqp_option = {'ftol': self.ftol, 'disp': False, 'maxiter': maxiter}
+        res = tinyfk_sqp_plan_trajectory(
             self.sscc, self.cm, av_seq_init, self.joint_list, self.n_wp,
             safety_margin=3e-2, with_base=True, slsqp_option=slsqp_option)
-        self.av_seq_cache = av_seq
-        self.fridge_pose_cache = self.fridge.copy_worldcoords()
+
+        SUCCESS = 0
+        ITER_LIMIT = 9
+        print("status: {0}".format(res.status))
+        if res.status in [SUCCESS, ITER_LIMIT]:
+            av_seq = res.x
+            self.av_seq_cache = av_seq
+            self.fridge_pose_cache = self.fridge.copy_worldcoords()
         return av_seq
 
     def debug_view(self):
@@ -236,12 +238,12 @@ if __name__=='__main__':
     robot_model = pr2_init()
     problem = PoseDependentProblem(robot_model, n_wp, k_start, k_end)
 
-    def solve(use_sol_cache=False):
+    def solve(use_sol_cache=False, maxiter=100):
         co = Coordinates()
         robot_model.newcoords(co)
         trans, rpy = get_current_pose()
         problem.reset_firdge_pose_from_handle_pose(trans, rpy)
-        problem.solve(use_sol_cache=use_sol_cache)
+        problem.solve(use_sol_cache=use_sol_cache, maxiter=maxiter)
 
     def solve_in_simulater(use_sol_cache=False):
         problem.reset_firdge_pose([1.5, 1.5, 0.0])
@@ -253,12 +255,12 @@ if __name__=='__main__':
     robot_model2 = pr2_init()
     robot_model2.fksolver = None
     ri = skrobot.interfaces.ros.PR2ROSRobotInterface(robot_model2)
+    ri.move_gripper("rarm", pos=0.06)
 
     trans, rpy = get_current_pose()
     problem.reset_firdge_pose_from_handle_pose(trans, rpy)
     solve(False)
 
-    ri.move_gripper("rarm", pos=0.06)
     problem.send_cmd_to_ri(ri)
     time.sleep(problem.duration * (problem.k_start-1.3))
     ri.move_gripper("rarm", pos=0)
