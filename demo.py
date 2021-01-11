@@ -2,6 +2,8 @@
 import time
 from pyinstrument import Profiler
 import dill
+from tqdm import tqdm
+
 
 import numpy as np
 import rospy
@@ -23,6 +25,7 @@ from skrobot.planner.utils import update_fksolver
 from pr2opt_common import *
 from door import Fridge, door_open_angle_seq
 import copy
+from sample_from_manifold import ManifoldSampler
 
 from geometry_msgs.msg import Pose
 
@@ -246,6 +249,45 @@ class PoseDependentProblem(object):
         self.fridge.newcoords(co)
         self.fridge.reset_angle()
 
+    def sample_from_constraint_manifold(self, k_wp, n_sample=3000, eps=0.2):
+        # call this after setup problem
+        # TODO this method should be inside constraint manager
+
+        # get_joint_limit 
+        fix_negative_inf = lambda x: -6.28 if x == -np.inf else x
+        fix_positive_inf = lambda x: 6.28 if x == np.inf else x
+        j_mins, j_maxs = zip(*[(fix_negative_inf(j.min_angle), fix_positive_inf(j.max_angle))
+            for j in problem.joint_list])
+
+        sdf = self.sscc.sdf[k_wp]
+        sscc_here = TinyfkSweptSphereSdfCollisionChecker(sdf, robot_model)
+
+        for link in rarm_coll_link_list(robot_model):
+            sscc_here.add_collision_link(link)
+
+        eq_const = problem.cm.constraint_table[k_wp] 
+        const_func = eq_const.gen_subfunc()
+
+        joint_ids = robot_model.fksolver.get_joint_ids([j.name for j in problem.joint_list])
+        def predicate(av):
+            sds, _ = sscc_here._compute_batch_sd_vals(joint_ids, np.array([av]), with_base=True)
+            return np.all(sds > 0)
+
+        av_init = eq_const.satisfying_angle_vector(collision_checker=sscc_here)
+        # tweak base
+        j_mins_with_base = np.hstack([j_mins, av_init[-3:]-0.1]) + 1e-3
+        j_maxs_with_base = np.hstack([j_maxs, av_init[-3:]+0.1]) + 1e-3
+
+        assert predicate(av_init)
+        assert np.all(av_init < j_maxs_with_base), "{0} neq {1}".format(av_init, j_maxs_with_base)
+        assert np.all(av_init > j_mins_with_base), "{0} neq {1}".format(av_init, j_mins_with_base)
+        ms = ManifoldSampler(av_init, const_func, j_mins_with_base, j_maxs_with_base,
+                feasible_predicate=predicate, eps=eps)
+        print("Sampling from constraint manifold...")
+        for i in tqdm(range(n_sample)):
+            ms.extend()
+        return ms.get_whole_sample()
+
 def setup_rosnode():
     rospy.init_node('planner', anonymous=True)
     pose_current = {"pose": None}
@@ -281,7 +323,14 @@ if __name__=='__main__':
         problem.setup()
         av_seq = problem.solve(use_sol_cache=use_sol_cache, maxiter=100, only_ik=only_ik)
 
-    solve_in_simulater(use_sol_cache=False, only_ik=False)
+    problem.reset_firdge_pose([2.0, 1.5, 0.0])
+    problem.setup()
+    av_seq = problem.solve()
+
+    S = problem.sample_from_constraint_manifold(n_wp-1, n_sample=10000, eps=0.1)
+    set_robot_config(robot_model, problem.joint_list, S[-1], with_base=True)
+
+    #solve_in_simulater(use_sol_cache=False, only_ik=False)
     #problem.debug_view()
     #solve_in_simulater(use_sol_cache=True)
 
