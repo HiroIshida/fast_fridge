@@ -2,12 +2,13 @@ import numpy as np
 from scipy.linalg import null_space
 
 class ManifoldSampler(object):
-    def __init__(self, x_init, func, b_min, b_max):
+    def __init__(self, x_init, func, b_min, b_max, feasible_predicate=None):
         self.itr = 0
         self.func = func
         self.b_min = b_min
         self.b_max = b_max
         self.n_dim = len(b_min)
+        self.feasible_predicate = feasible_predicate
 
         self.eps = 0.2
 
@@ -52,10 +53,15 @@ class ManifoldSampler(object):
 
         # step4 project onto the manifold
         x_new = self._project_to_manifold(x_new_nspace)
+        if self.feasible_predicate is None:
+            isvalid = True
+        else:
+            isvalid = self.feasible_predicate(x_new)
 
         # post process
-        self.X[self.itr+1] = x_new
-        self.itr += 1
+        if isvalid:
+            self.X[self.itr+1] = x_new
+            self.itr += 1
 
 if __name__=='__main__':
     def func(x):
@@ -63,11 +69,14 @@ if __name__=='__main__':
         jac = (2 * x).reshape(1, 3)
         return f_val, jac
 
+    def predicate(x):
+        return x[0] > 0
+
     b_min = np.ones(3) * -2
     b_max = np.ones(3) * 2
     x_init = np.array([1, 0, 0])
-    m = ManifoldSampler(x_init, func, b_min=b_min, b_max=b_max)
-    for i in range(100):
+    m = ManifoldSampler(x_init, func, b_min=b_min, b_max=b_max, feasible_predicate=predicate)
+    for i in range(10000):
         m.sample()
 
     from mpl_toolkits.mplot3d import Axes3D 
@@ -77,5 +86,4 @@ if __name__=='__main__':
     ax = fig.add_subplot(111, projection='3d')
     ax.scatter(m.X[:, 0], m.X[:, 1], m.X[:, 2])
     plt.show()
-
 
