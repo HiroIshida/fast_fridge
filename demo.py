@@ -23,6 +23,7 @@ from skrobot.planner.utils import update_fksolver
 from pr2opt_common import *
 from door import Fridge, door_open_angle_seq
 import copy
+from sample_from_manifold import ManifoldSampler
 
 from geometry_msgs.msg import Pose
 
@@ -281,7 +282,49 @@ if __name__=='__main__':
         problem.setup()
         av_seq = problem.solve(use_sol_cache=use_sol_cache, maxiter=100, only_ik=only_ik)
 
-    solve_in_simulater(use_sol_cache=False, only_ik=False)
+    problem.reset_firdge_pose([2.0, 1.5, 0.0])
+    problem.setup()
+
+    # get_joint_limit 
+    fix_negative_inf = lambda x: -3.14 if x == -np.inf else x
+    fix_positive_inf = lambda x: 3.14 if x == np.inf else x
+    j_mins_, j_maxs_ = zip(*[(fix_negative_inf(j.min_angle), fix_positive_inf(j.max_angle))
+        for j in problem.joint_list])
+    j_mins = np.hstack([j_mins_, [-1, -1, -3.14]])
+    j_maxs = np.hstack([j_mins_, [1, 1, 3.14]])
+
+    # AD HOC
+    sdf_start = problem.sscc.sdf[problem.k_start - 1]
+    sscc_start = TinyfkSweptSphereSdfCollisionChecker(sdf_start, robot_model)
+
+    for link in rarm_coll_link_list(robot_model):
+        sscc_start.add_collision_link(link)
+
+    const_start = problem.cm.constraint_table[problem.k_start - 1] # pregrasp
+    av_start = const_start.satisfying_angle_vector(collision_checker=sscc_start)
+    func = const_start.gen_subfunc()
+    ms = ManifoldSampler(av_start, func, j_mins, j_maxs)
+    for i in range(1000):
+        ms.sample()
+
+    # AD HOC solve goal
+    """
+    sdf_goal = problem.sscc.sdf[problem.n_wp - 1]
+    sscc_goal = TinyfkSweptSphereSdfCollisionChecker(sdf_goal, robot_model)
+
+    for link in rarm_coll_link_list(robot_model):
+        sscc_goal.add_collision_link(link)
+    const_goal = problem.cm.constraint_table[problem.n_wp - 1]
+    av_goal = const_goal.satisfying_angle_vector(collision_checker=sscc_goal)
+
+    problem.fridge.set_angle(0.8)
+    set_robot_config(robot_model, problem.joint_list, av_goal, with_base=True)
+    """
+
+
+
+
+    #solve_in_simulater(use_sol_cache=False, only_ik=False)
     #problem.debug_view()
     #solve_in_simulater(use_sol_cache=True)
 
