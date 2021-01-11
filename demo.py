@@ -125,14 +125,7 @@ class PoseDependentProblem(object):
         with open(name, "wb") as f:
             dill.dump(data, f)
 
-    @bench
-    def solve(self, fridge_pose=None, use_sol_cache=False, maxiter=100, only_ik=False):
-        if fridge_pose is not None:
-            trans, rpy = fridge_pose
-            ypr = [rpy[2], rpy[1], rpy[0]]
-            co = Coordinates(pos=trans, rotation=ypr)
-            self.fridge.newcoords(co)
-
+    def setup(self):
         av_start = get_robot_config(robot_model, self.joint_list, with_base=True)
         self.cm.add_eq_configuration(0, av_start, force=True)
         sdf_list = self.fridge.gen_door_open_sdf_list(
@@ -149,6 +142,8 @@ class PoseDependentProblem(object):
         self.cm.add_pose_constraint(
             self.n_wp-1, "l_gripper_tool_frame", trans, force=True)
 
+    @bench
+    def solve(self, use_sol_cache=False, maxiter=100, only_ik=False):
         if use_sol_cache:
             assert (self.av_seq_cache is not None)
             # TODO make better initial solution using robot's current configuration
@@ -173,7 +168,8 @@ class PoseDependentProblem(object):
             self.debug_av_seq_init_cache = av_seq_init
         else:
             av_current = get_robot_config(self.robot_model, self.joint_list, with_base=True)
-            self.sscc_for_initial_trajectory.set_sdf(sdf_list[-1])
+            sdf_last = self.sscc.sdf[-1]
+            self.sscc_for_initial_trajectory.set_sdf(sdf_last)
             av_seq_init = self.cm.gen_initial_trajectory(
                 av_init=av_current, collision_checker=self.sscc_for_initial_trajectory)
 
@@ -282,6 +278,7 @@ if __name__=='__main__':
 
     def solve_in_simulater(use_sol_cache=False, only_ik=False):
         problem.reset_firdge_pose([2.0, 1.5, 0.0])
+        problem.setup()
         av_seq = problem.solve(use_sol_cache=use_sol_cache, maxiter=100, only_ik=only_ik)
 
     solve_in_simulater(use_sol_cache=False, only_ik=False)
