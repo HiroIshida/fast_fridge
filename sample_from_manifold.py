@@ -2,10 +2,9 @@ import numpy as np
 from scipy.linalg import null_space
 
 class ManifoldSampler(object):
-    def __init__(self, x_init, f_implicit, jac_implicit, b_min, b_max):
+    def __init__(self, x_init, func, b_min, b_max):
         self.itr = 0
-        self.f_implicit = f_implicit
-        self.jac_implicit = jac_implicit
+        self.func = func
         self.b_min = b_min
         self.b_max = b_max
         self.n_dim = len(b_min)
@@ -24,12 +23,10 @@ class ManifoldSampler(object):
         th = 1e-4
         sr_weight = 1.0
         while True:
-            f_val = np.array(self.f_implicit(x))
-            jac = self.jac_implicit(x)
+            f_val, jac = self.func(x)
             if np.all(np.abs(f_val) < th):
                 break
-            J = self.jac_implicit(x)
-            J_sharp = J.T.dot(np.linalg.inv(J.dot(J.T) + sr_weight))
+            J_sharp = jac.T.dot(np.linalg.inv(jac.dot(jac.T) + sr_weight))
             x += (- f_val).dot(J_sharp.T)
         return x
 
@@ -44,7 +41,7 @@ class ManifoldSampler(object):
 
         # step3 project difference_vector onto the nullspace
         diff_vec = x_rand - x_nearest
-        jac = self.jac_implicit(x_nearest)
+        _, jac = self.func(x_nearest)
         N = null_space(jac)
         diff_vec_nspace = N.dot(N.T).dot(diff_vec)
         diff_norm = np.linalg.norm(diff_vec_nspace)
@@ -61,12 +58,15 @@ class ManifoldSampler(object):
         self.itr += 1
 
 if __name__=='__main__':
-    f = lambda x: np.array([sum(x**2) - 1])
-    jac = lambda x: (2 * x).reshape(1, 3)
+    def func(x):
+        f_val = np.array([sum(x**2) - 1])
+        jac = (2 * x).reshape(1, 3)
+        return f_val, jac
+
     b_min = np.ones(3) * -2
     b_max = np.ones(3) * 2
     x_init = np.array([1, 0, 0])
-    m = ManifoldSampler(x_init, f, jac, b_min=b_min, b_max=b_max)
+    m = ManifoldSampler(x_init, func, b_min=b_min, b_max=b_max)
     for i in range(100):
         m.sample()
 
