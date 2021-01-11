@@ -2,7 +2,7 @@ import numpy as np
 from scipy.linalg import null_space
 
 class ManifoldSampler(object):
-    def __init__(self, x_init, func, b_min, b_max, feasible_predicate=None):
+    def __init__(self, x_init, func, b_min, b_max, feasible_predicate=None, eps=0.2):
         self.itr = 0
         self.func = func
         self.b_min = b_min
@@ -10,7 +10,7 @@ class ManifoldSampler(object):
         self.n_dim = len(b_min)
         self.feasible_predicate = feasible_predicate
 
-        self.eps = 0.2
+        self.eps = eps
 
         self.X = np.zeros((100000, self.n_dim))
         self.X[0] = x_init
@@ -31,7 +31,7 @@ class ManifoldSampler(object):
             x += (- f_val).dot(J_sharp.T)
         return x
 
-    def sample(self):
+    def extend(self):
         # step1 sample from box
         x_rand = self._sample_from_box()
 
@@ -63,6 +63,10 @@ class ManifoldSampler(object):
             self.X[self.itr+1] = x_new
             self.itr += 1
 
+    def get_whole_sample(self):
+        return self.X[:self.itr+1]
+
+
 if __name__=='__main__':
     def func(x):
         f_val = np.array([sum(x**2) - 1])
@@ -77,13 +81,14 @@ if __name__=='__main__':
     x_init = np.array([1, 0, 0])
     m = ManifoldSampler(x_init, func, b_min=b_min, b_max=b_max, feasible_predicate=predicate)
     for i in range(10000):
-        m.sample()
+        m.extend()
 
     from mpl_toolkits.mplot3d import Axes3D 
     import matplotlib.pyplot as plt
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.scatter(m.X[:, 0], m.X[:, 1], m.X[:, 2])
+    X = m.get_whole_sample()
+    ax.scatter(X[:, 0], X[:, 1], X[:, 2])
     plt.show()
 
