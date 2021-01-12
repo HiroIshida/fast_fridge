@@ -291,7 +291,7 @@ class PoseDependentProblem(object):
 
         av_init = eq_const.satisfying_angle_vector(collision_checker=sscc_here)
         # tweak base
-        j_mins_with_base = np.hstack([j_mins, av_init[-3:]-0.1]) + 1e-3
+        j_mins_with_base = np.hstack([j_mins, av_init[-3:]-0.1]) - 1e-3
         j_maxs_with_base = np.hstack([j_maxs, av_init[-3:]+0.1]) + 1e-3
 
         assert predicate(av_init)
