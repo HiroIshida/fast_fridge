@@ -116,6 +116,15 @@ class PoseDependentProblem(object):
         ri.angle_vector_sequence(full_av_seq, time_seq)
         ri.move_trajectory_sequence(base_pose_seq, time_seq, send_action=True)
 
+    def load_subsol_cache(self):
+        name = "subsol_cache.dill"
+        with open(name, "rb") as f:
+            data = dill.load(f)
+            av_subseq_cache = data["av_seq_cache"]
+            av_start = get_robot_config(self.robot_model, self.joint_list, with_base=True)
+            self.av_seq_cache = np.vstack([[av_start] * (self.k_start -1), av_subseq_cache])
+            self.fridge_pose_cache = data["fridge_pose_cache"]
+
     def load_sol_cache(self, name="sol_cache.dill"):
         with open(name, "rb") as f:
             data = dill.load(f)
@@ -197,7 +206,7 @@ class PoseDependentProblem(object):
             return
 
 
-        slsqp_option = {'ftol': self.ftol, 'disp': False, 'maxiter': maxiter}
+        slsqp_option = {'ftol': self.ftol, 'disp': True, 'maxiter': maxiter}
         res = tinyfk_sqp_plan_trajectory(
             self.sscc, self.cm, av_seq_init, self.joint_list, self.n_wp,
             safety_margin=3e-2, with_base=True, slsqp_option=slsqp_option)
@@ -205,10 +214,11 @@ class PoseDependentProblem(object):
         SUCCESS = 0
         ITER_LIMIT = 9
         print("status: {0}".format(res.status))
-        if res.status in [SUCCESS, ITER_LIMIT]:
+        if res.status in [SUCCESS]:
             av_seq = res.x
             self.av_seq_cache = av_seq
             self.fridge_pose_cache = self.fridge.copy_worldcoords()
+            print("trajectory optimization completed")
             return av_seq
         else:
             return None
@@ -322,7 +332,7 @@ def setup_rosnode():
     return (lambda : pose_current["pose"])
 
 def generate_door_opening_trajectories():
-    n_wp = 9
+    n_wp = 11
     k_start = 1
     k_end = 4
     robot_model = pr2_init()
@@ -331,8 +341,9 @@ def generate_door_opening_trajectories():
     problem.reset_firdge_pose([2.0, 1.5, 0.0])
     problem.setup()
 
-    X_start = problem.sample_from_constraint_manifold(0, n_sample=10000, eps=0.1)
-    X_end = problem.sample_from_constraint_manifold(n_wp-1, n_sample=10000, eps=0.1)
+    N = 10000
+    X_start = problem.sample_from_constraint_manifold(0, n_sample=N, eps=0.1)
+    X_end = problem.sample_from_constraint_manifold(n_wp-1, n_sample=N, eps=0.1)
     print("start solving")
     while True:
         x_start = X_start[np.random.randint(X_start.shape[0])]
@@ -343,13 +354,14 @@ def generate_door_opening_trajectories():
         problem.fridge_pose_cache = problem.fridge.copy_worldcoords()
         av_seq_sol = problem.solve(use_sol_cache=True)
         if av_seq_sol is not None:
-            return problem
+            problem.dump_sol_cache("subsol_cache.dill")
+            return
         print("cannot be solved. retry...")
 
 if __name__=='__main__':
     #problem, av_seq_sol = generate_door_opening_trajectories()
-    get_current_pose = setup_rosnode()
-    n_wp = 16
+    #get_current_pose = setup_rosnode()
+    n_wp = 18
     k_start = 8
     k_end = 11
     robot_model = pr2_init()
@@ -364,7 +376,7 @@ if __name__=='__main__':
     def solve(use_sol_cache=False, maxiter=100):
         if not use_sol_cache:
             create_cache()
-        problem.load_sol_cache()
+        problem.load_sol_cache("subsol_cache.dill")
         co = Coordinates()
         robot_model.newcoords(co)
         trans, rpy = get_current_pose()
@@ -372,7 +384,8 @@ if __name__=='__main__':
         problem.setup()
         problem.solve(use_sol_cache=True, maxiter=maxiter)
 
-    create_cache()
+    generate_door_opening_trajectories()
+    #create_cache()
     """ simulater demo
     create_cache()
     problem.load_sol_cache()
@@ -380,6 +393,11 @@ if __name__=='__main__':
     problem.setup()
     av_seq = problem.solve(use_sol_cache=True)
     """
+
+    problem.load_subsol_cache()
+    problem.reset_firdge_pose([1.5, 1.5, 0.0], [0, 0, -0.3])
+    problem.setup()
+    av_seq = problem.solve(use_sol_cache=True)
 
     """
     robot_model2 = pr2_init()
