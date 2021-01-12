@@ -175,6 +175,8 @@ class PoseDependentProblem(object):
         av_seq_init[:, -3:-1] = T_composite(traj_planer)
         av_seq_init[:, -1] += (yaw_now - yaw_pre)
 
+        av_seq_init[0, -3:] = np.zeros(3)
+
         self.debug_av_seq_init_cache = av_seq_init
         return av_seq_init
 
@@ -345,7 +347,7 @@ def generate_door_opening_trajectories():
         print("cannot be solved. retry...")
 
 if __name__=='__main__':
-    problem, av_seq_sol = generate_door_opening_trajectories()
+    #problem, av_seq_sol = generate_door_opening_trajectories()
     #get_current_pose = setup_rosnode()
     n_wp = 16
     k_start = 8
@@ -353,28 +355,28 @@ if __name__=='__main__':
     robot_model = pr2_init()
     problem = PoseDependentProblem(robot_model, n_wp, k_start, k_end)
 
+    def create_cache():
+        problem.reset_firdge_pose([2.0, 1.5, 0.0])
+        problem.setup()
+        av_seq = problem.solve()
+        problem.dump_sol_cache()
+
     def solve(use_sol_cache=False, maxiter=100):
+        if not use_sol_cache:
+            create_cache()
+        problem.load_sol_cache()
         co = Coordinates()
         robot_model.newcoords(co)
         trans, rpy = get_current_pose()
         problem.reset_firdge_pose_from_handle_pose(trans, rpy)
         problem.solve(use_sol_cache=use_sol_cache, maxiter=maxiter)
 
-    def solve_in_simulater(use_sol_cache=False, only_ik=False):
-        problem.reset_firdge_pose([2.0, 1.5, 0.0])
-        problem.setup()
-        av_seq = problem.solve(use_sol_cache=use_sol_cache, maxiter=100, only_ik=only_ik)
-
-    problem.reset_firdge_pose([2.0, 1.5, 0.0])
+    # reuse cache
+    create_cache()
+    problem.load_sol_cache()
+    problem.reset_firdge_pose([1.5, 1.5, 0.0], [0, 0, -0.3])
     problem.setup()
-    av_seq = problem.solve()
-
-    S = problem.sample_from_constraint_manifold(n_wp-1, n_sample=10000, eps=0.1)
-    set_robot_config(robot_model, problem.joint_list, S[-1], with_base=True)
-
-    #solve_in_simulater(use_sol_cache=False, only_ik=False)
-    #problem.debug_view()
-    #solve_in_simulater(use_sol_cache=True)
+    av_seq = problem.solve(use_sol_cache=True)
 
     """
     robot_model2 = pr2_init()
