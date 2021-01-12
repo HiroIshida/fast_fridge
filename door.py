@@ -72,7 +72,7 @@ class Fridge(skrobot.model.RobotModel):
 
     def prepare_gripper_pose(self):
         coords = self.axis.copy_worldcoords()
-        coords.translate([-0.00, 0, 0])
+        coords.translate([-0.1, 0, 0])
         pos = coords.worldpos()
         rot = coords.worldrot()
         ypr = rpy_angle(rot)[0] # skrobot's rpy is ypr

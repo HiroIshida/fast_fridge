@@ -101,7 +101,7 @@ class PoseDependentProblem(object):
         self.debug_av_seq_init_cache = None
 
         # cmd ri
-        self.duration = 0.8
+        self.duration = 0.7
 
     def send_cmd_to_ri(self, ri):
         self.robot_model.fksolver = None
@@ -360,7 +360,7 @@ def generate_door_opening_trajectories():
 
 if __name__=='__main__':
     #problem, av_seq_sol = generate_door_opening_trajectories()
-    #get_current_pose = setup_rosnode()
+    get_current_pose = setup_rosnode()
     n_wp = 18
     k_start = 8
     k_end = 11
@@ -374,9 +374,7 @@ if __name__=='__main__':
         problem.dump_sol_cache()
 
     def solve(use_sol_cache=False, maxiter=100):
-        if not use_sol_cache:
-            create_cache()
-        problem.load_sol_cache("subsol_cache.dill")
+        problem.load_sol_cache()
         co = Coordinates()
         robot_model.newcoords(co)
         trans, rpy = get_current_pose()
@@ -384,7 +382,7 @@ if __name__=='__main__':
         problem.setup()
         problem.solve(use_sol_cache=True, maxiter=maxiter)
 
-    generate_door_opening_trajectories()
+    #generate_door_opening_trajectories()
     #create_cache()
     """ simulater demo
     create_cache()
@@ -394,12 +392,13 @@ if __name__=='__main__':
     av_seq = problem.solve(use_sol_cache=True)
     """
 
+    """
     problem.load_subsol_cache()
     problem.reset_firdge_pose([1.5, 1.5, 0.0], [0, 0, -0.3])
     problem.setup()
     av_seq = problem.solve(use_sol_cache=True)
-
     """
+
     robot_model2 = pr2_init()
     robot_model2.fksolver = None
     ri = skrobot.interfaces.ros.PR2ROSRobotInterface(robot_model2)
@@ -409,11 +408,10 @@ if __name__=='__main__':
     trans, rpy = get_current_pose()
     problem.reset_firdge_pose_from_handle_pose(trans, rpy)
     solve(True)
-    """
 
     """
     problem.send_cmd_to_ri(ri)
-    t_gripper_close = problem.duration * (problem.k_start-1.3)
+    t_gripper_close = problem.duration * (problem.k_start-1.0)
     t_gripper_open = problem.duration * problem.k_end
 
     time.sleep(t_gripper_close)
