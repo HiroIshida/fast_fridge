@@ -7,6 +7,7 @@ from tqdm import tqdm
 
 import numpy as np
 import rospy
+from math import *
 
 import skrobot
 from skrobot.model.primitives import Axis
@@ -56,7 +57,7 @@ def detailbench(func):
     return wrapper
 
 # initialization stuff
-np.random.seed(1)
+np.random.seed(0)
 
 class PoseDependentProblem(object):
     def __init__(self, robot_model, n_wp, k_start, k_end, angle_open=0.8):
@@ -145,30 +146,43 @@ class PoseDependentProblem(object):
         self.cm.add_pose_constraint(
             self.n_wp-1, "l_gripper_tool_frame", trans, force=True)
 
+    def create_av_init_from_cached_trajectory(self):
+        tf_base2fridge_now = self.fridge.copy_worldcoords()
+        tf_base2fridge_pre = self.fridge_pose_cache
+
+        # NOTE somehow, in applying to vector, we must take inverse
+        traj_planer = np.zeros((self.n_wp, 2))
+        traj_planer[:, 0] = self.av_seq_cache[:, -3]
+        traj_planer[:, 1] = self.av_seq_cache[:, -2] # world
+
+        # The transformatoin should be composite : COMPOSITE(x) = T_F'^I * T_I^F (x)
+        # T_I^F (x) = R(-theta) * (x - o)
+        # T_I^F'(x) = R(theta') * (x - o')
+        # COMPOSITE(x) = T(theta' - theta) * (x - o) + o'
+
+        o_pre = tf_base2fridge_pre.worldpos()[:2]
+        o_now = tf_base2fridge_now.worldpos()[:2]
+        yaw_now = rpy_angle(tf_base2fridge_now.worldrot())[0][0]
+        yaw_pre = rpy_angle(tf_base2fridge_pre.worldrot())[0][0]
+        R = lambda a: np.array([[cos(a), -sin(a)],[sin(a), cos(a)]])
+
+        # transpose because X is array of raw vector
+        def T_composite(X):
+            Rmat = R(yaw_now - yaw_pre)
+            return Rmat.dot((X - o_pre).transpose()).transpose() + o_now 
+
+        av_seq_init = copy.copy(self.av_seq_cache)
+        av_seq_init[:, -3:-1] = T_composite(traj_planer)
+        av_seq_init[:, -1] += (yaw_now - yaw_pre)
+
+        self.debug_av_seq_init_cache = av_seq_init
+        return av_seq_init
+
     @bench
     def solve(self, use_sol_cache=False, maxiter=100, only_ik=False):
         if use_sol_cache:
             assert (self.av_seq_cache is not None)
-            # TODO make better initial solution using robot's current configuration
-            ts = time.time()
-            tf_base2fridge_now = self.fridge.copy_worldcoords()
-            tf_base2fridge_pre = self.fridge_pose_cache
-
-            # NOTE somehow, in applying to vector, we must take inverse
-            traj_planer = np.zeros((self.n_wp, 3))
-            traj_planer[:, 0] = self.av_seq_cache[:, -3]
-            traj_planer[:, 1] = self.av_seq_cache[:, -2] # world
-            traj_planer_wrt_fridge = tf_base2fridge_pre.inverse_transformation().transform_vector(traj_planer)
-            traj_planer_wrt_base_now = tf_base2fridge_now.transform_vector(traj_planer_wrt_fridge)
-
-            yaw_now = rpy_angle(tf_base2fridge_now.worldrot())[0][0]
-            yaw_pre = rpy_angle(tf_base2fridge_pre.worldrot())[0][0]
-
-            av_seq_init = copy.copy(self.av_seq_cache)
-            av_seq_init[:, -3:-1] = traj_planer_wrt_base_now[:, -3:-1]
-            av_seq_init[:, -1] += (yaw_now - yaw_pre)
-
-            self.debug_av_seq_init_cache = av_seq_init
+            av_seq_init = self.create_av_init_from_cached_trajectory()
         else:
             av_current = get_robot_config(self.robot_model, self.joint_list, with_base=True)
             sdf_last = self.sscc.sdf[-1]
@@ -327,7 +341,7 @@ def generate_door_opening_trajectories():
         problem.fridge_pose_cache = problem.fridge.copy_worldcoords()
         av_seq_sol = problem.solve(use_sol_cache=True)
         if av_seq_sol is not None:
-            return problem, av_seq_sol
+            return problem
         print("cannot be solved. retry...")
 
 if __name__=='__main__':
