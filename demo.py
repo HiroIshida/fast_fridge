@@ -56,7 +56,7 @@ def detailbench(func):
     return wrapper
 
 # initialization stuff
-np.random.seed(0)
+np.random.seed(1)
 
 class PoseDependentProblem(object):
     def __init__(self, robot_model, n_wp, k_start, k_end, angle_open=0.8):
@@ -129,12 +129,12 @@ class PoseDependentProblem(object):
             dill.dump(data, f)
 
     def setup(self):
-        av_start = get_robot_config(robot_model, self.joint_list, with_base=True)
+        av_start = get_robot_config(self.robot_model, self.joint_list, with_base=True)
         self.cm.add_eq_configuration(0, av_start, force=True)
         sdf_list = self.fridge.gen_door_open_sdf_list(
                 self.n_wp, self.k_start, self.k_end, self.angle_open)
         self.sscc.set_sdf(sdf_list)
-        for idx, pose in self.fridge.gen_door_open_coords(k_start, k_end, self.angle_open):
+        for idx, pose in self.fridge.gen_door_open_coords(self.k_start, self.k_end, self.angle_open):
             self.cm.add_pose_constraint(idx, "r_gripper_tool_frame", pose, force=True)
 
         # add left arm constraint 
@@ -193,7 +193,9 @@ class PoseDependentProblem(object):
             av_seq = res.x
             self.av_seq_cache = av_seq
             self.fridge_pose_cache = self.fridge.copy_worldcoords()
-        return av_seq
+            return av_seq
+        else:
+            return None
 
     def debug_view(self):
         if self.viewer is None:
@@ -257,18 +259,18 @@ class PoseDependentProblem(object):
         fix_negative_inf = lambda x: -6.28 if x == -np.inf else x
         fix_positive_inf = lambda x: 6.28 if x == np.inf else x
         j_mins, j_maxs = zip(*[(fix_negative_inf(j.min_angle), fix_positive_inf(j.max_angle))
-            for j in problem.joint_list])
+            for j in self.joint_list])
 
         sdf = self.sscc.sdf[k_wp]
-        sscc_here = TinyfkSweptSphereSdfCollisionChecker(sdf, robot_model)
+        sscc_here = TinyfkSweptSphereSdfCollisionChecker(sdf, self.robot_model)
 
-        for link in rarm_coll_link_list(robot_model):
+        for link in rarm_coll_link_list(self.robot_model):
             sscc_here.add_collision_link(link)
 
-        eq_const = problem.cm.constraint_table[k_wp] 
+        eq_const = self.cm.constraint_table[k_wp] 
         const_func = eq_const.gen_subfunc()
 
-        joint_ids = robot_model.fksolver.get_joint_ids([j.name for j in problem.joint_list])
+        joint_ids = self.robot_model.fksolver.get_joint_ids([j.name for j in self.joint_list])
         def predicate(av):
             sds, _ = sscc_here._compute_batch_sd_vals(joint_ids, np.array([av]), with_base=True)
             return np.all(sds > 0)
@@ -303,7 +305,33 @@ def setup_rosnode():
     sub = rospy.Subscriber(topic_name, Pose, cb_pose)
     return (lambda : pose_current["pose"])
 
+def generate_door_opening_trajectories():
+    n_wp = 9
+    k_start = 1
+    k_end = 4
+    robot_model = pr2_init()
+    problem = PoseDependentProblem(robot_model, n_wp, k_start, k_end)
+
+    problem.reset_firdge_pose([2.0, 1.5, 0.0])
+    problem.setup()
+
+    X_start = problem.sample_from_constraint_manifold(0, n_sample=10000, eps=0.1)
+    X_end = problem.sample_from_constraint_manifold(n_wp-1, n_sample=10000, eps=0.1)
+    print("start solving")
+    while True:
+        x_start = X_start[np.random.randint(X_start.shape[0])]
+        x_end = X_end[np.random.randint(X_end.shape[0])]
+        w = (x_end - x_start)/(n_wp - 1)
+        av_seq_init = np.array([x_start + w * i for i in range(n_wp)])
+        problem.av_seq_cache = av_seq_init
+        problem.fridge_pose_cache = problem.fridge.copy_worldcoords()
+        av_seq_sol = problem.solve(use_sol_cache=True)
+        if av_seq_sol is not None:
+            return problem, av_seq_sol
+        print("cannot be solved. retry...")
+
 if __name__=='__main__':
+    problem, av_seq_sol = generate_door_opening_trajectories()
     #get_current_pose = setup_rosnode()
     n_wp = 16
     k_start = 8
