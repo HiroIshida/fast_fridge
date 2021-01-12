@@ -348,7 +348,7 @@ def generate_door_opening_trajectories():
 
 if __name__=='__main__':
     #problem, av_seq_sol = generate_door_opening_trajectories()
-    #get_current_pose = setup_rosnode()
+    get_current_pose = setup_rosnode()
     n_wp = 16
     k_start = 8
     k_end = 11
@@ -369,27 +369,38 @@ if __name__=='__main__':
         robot_model.newcoords(co)
         trans, rpy = get_current_pose()
         problem.reset_firdge_pose_from_handle_pose(trans, rpy)
-        problem.solve(use_sol_cache=use_sol_cache, maxiter=maxiter)
+        problem.setup()
+        problem.solve(use_sol_cache=True, maxiter=maxiter)
 
-    # reuse cache
+    create_cache()
+    """ simulater demo
     create_cache()
     problem.load_sol_cache()
     problem.reset_firdge_pose([1.5, 1.5, 0.0], [0, 0, -0.3])
     problem.setup()
     av_seq = problem.solve(use_sol_cache=True)
+    """
 
     """
     robot_model2 = pr2_init()
     robot_model2.fksolver = None
     ri = skrobot.interfaces.ros.PR2ROSRobotInterface(robot_model2)
     ri.move_gripper("rarm", pos=0.06)
+    ri.angle_vector(robot_model2.angle_vector()) # copy angle vector to real robot
 
     trans, rpy = get_current_pose()
     problem.reset_firdge_pose_from_handle_pose(trans, rpy)
-    solve(False)
-
-    problem.send_cmd_to_ri(ri)
-    time.sleep(problem.duration * (problem.k_start-1.3))
-    ri.move_gripper("rarm", pos=0)
-    #problem.vis_sol()
+    solve(True)
     """
+
+    """
+    problem.send_cmd_to_ri(ri)
+    t_gripper_close = problem.duration * (problem.k_start-1.3)
+    t_gripper_open = problem.duration * problem.k_end
+
+    time.sleep(t_gripper_close)
+    ri.move_gripper("rarm", pos=0.0)
+    time.sleep(t_gripper_open - t_gripper_close)
+    ri.move_gripper("rarm", pos=0.1)
+    """
+    #problem.vis_sol()

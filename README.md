@@ -1,4 +1,8 @@
+### how to run
+inside pr2: roslaunch detect_can... startup.launch 
+local: ./node_script/pose_processor.py
 
+###
 Node [/kinect_head/rgb/fridge_demo_sift]
 Publications: 
  * /diagnostics [diagnostic_msgs/DiagnosticArray]
