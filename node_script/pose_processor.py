@@ -29,7 +29,7 @@ class AverageQueue(object):
     def push(self, elem):
         assert len(elem) == self.dim
         data_remain = self.data[:self.N_average - 1, :]
-        self.data = np.vstack([data_remain, elem])
+        self.data = np.vstack([elem, data_remain])
         assert self.data.shape == (self.N_average, self.dim)
 
     def get_average(self):
@@ -49,7 +49,7 @@ class PoseProcessor(object):
 
         self.handle_pose = None
         self.rough_handle_pose = None
-        N_average = 20
+        N_average = 10
         self.aveque = AverageQueue(N_average, 7)
 
     def cb_object_detection(self, msg):
@@ -84,16 +84,24 @@ class PoseProcessor(object):
         quat = (quat_tmp / np.linalg.norm(quat_tmp)).tolist()
         self.handle_pose = [pos, quat]
 
+        self.broadcaster.sendTransform(
+                pos, quat,
+                rospy.Time.now(),
+                "fridge_handle_filtered",
+                "base_link")
+
     def publish_handle_pose_msg(self):
         if self.handle_pose is not None:
             msg_handle_to_map = utils.convert_tf2posemsg(self.handle_pose)
             self.pub.publish(msg_handle_to_map)
             print("publish sift")
+            print(self.handle_pose)
 
         elif self.rough_handle_pose is not None:
             msg_handle_to_map = utils.convert_tf2posemsg(self.rough_handle_pose)
             self.pub.publish(msg_handle_to_map)
             print("publish rough")
+            print(self.rough_handle_pose)
 
     def relative_fridge_pose(self):
         try:
