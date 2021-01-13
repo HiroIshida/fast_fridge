@@ -20,6 +20,22 @@ def tf2skcoords(transform):
     co = make_coords(pos = position, rot=mat)
     return co
 
+class AverageQueue(object):
+    def __init__(self, N_average, dim):
+        self.N_average = N_average
+        self.dim = dim
+        self.data = np.zeros((N_average, dim))
+
+    def push(self, elem):
+        assert len(elem) == self.dim
+        data_remain = self.data[:self.N_average - 1, :]
+        self.data = np.vstack([data_remain, elem])
+        assert self.data.shape == (self.N_average, self.dim)
+
+    def get_average(self):
+        return np.mean(self.data, axis=0)
+
+
 class PoseProcessor(object):
     def __init__(self):
         topic_name_detection = "/kinect_head/rgb/ObjectDetection"
@@ -33,6 +49,8 @@ class PoseProcessor(object):
 
         self.handle_pose = None
         self.rough_handle_pose = None
+        N_average = 20
+        self.aveque = AverageQueue(N_average, 7)
 
     def cb_object_detection(self, msg):
         assert len(msg.objects)==1
@@ -58,13 +76,20 @@ class PoseProcessor(object):
                 rospy.Time.now(),
                 "fridge_handle",
                 "base_link")
-        self.handle_pose = [pos, quaternion]
+
+        self.aveque.push(np.hstack((pos, quaternion)))
+        pose_average = self.aveque.get_average()
+        pos = pose_average[:3].tolist()
+        quat_tmp = pose_average[3:]
+        quat = (quat_tmp / np.linalg.norm(quat_tmp)).tolist()
+        self.handle_pose = [pos, quat]
 
     def publish_handle_pose_msg(self):
         if self.handle_pose is not None:
             msg_handle_to_map = utils.convert_tf2posemsg(self.handle_pose)
             self.pub.publish(msg_handle_to_map)
             print("publish sift")
+
         elif self.rough_handle_pose is not None:
             msg_handle_to_map = utils.convert_tf2posemsg(self.rough_handle_pose)
             self.pub.publish(msg_handle_to_map)
