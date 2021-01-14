@@ -103,19 +103,6 @@ class FridgeTask(object):
         self.fridge_pose_cache = tf_base2fridge_now
         return av_seq_init
 
-    def send_cmd_to_ri(self, ri):
-        self.robot_model.fksolver = None
-        base_pose_seq = self.av_seq_cache[:, -3:]
-
-        full_av_seq = []
-        for av in self.av_seq_cache:
-            set_robot_config(self.robot_model, self.joint_list, av, with_base=True)
-            full_av_seq.append(self.robot_model.angle_vector())
-
-        time_seq = [self.duration]*self.n_wp
-        ri.angle_vector_sequence(full_av_seq, time_seq)
-        ri.move_trajectory_sequence(base_pose_seq, time_seq, send_action=True)
-
     def load_sol_cache(self, name="sol_cache.dill"):
         with open(name, "rb") as f:
             data = dill.load(f)
@@ -392,6 +379,20 @@ def setup_rosnode():
     sub = rospy.Subscriber(topic_name, Pose, cb_pose)
     return (lambda : pose_current["pose"])
 
+def send_cmd_to_ri(ri, robot_model, joint_list, duration, av_seq):
+    base_pose_seq = av_seq[:, -3:]
+
+    full_av_seq = []
+    for av in av_seq:
+        set_robot_config(robot_model, joint_list, av, with_base=True)
+        full_av_seq.append(robot_model.angle_vector())
+    n_wp = len(full_av_seq)
+
+    time_seq = [duration]*n_wp
+    ri.angle_vector_sequence(full_av_seq, time_seq)
+    ri.move_trajectory_sequence(base_pose_seq, time_seq, send_action=True)
+
+
 def generate_door_opening_problem(load_cache=False):
 
     np.random.seed(23)
@@ -431,76 +432,39 @@ def generate_door_opening_problem(load_cache=False):
         print("cannot be solved. retry...")
 
 if __name__=='__main__':
+    get_current_pose = setup_rosnode()
+
     robot_model = pr2_init()
+
     n_wp = 10
-    problem_open = generate_door_opening_problem(load_cache=True)
-    problem_open.reset_firdge_pose([2.5, 1.5, 0.0])
-
     problem_approach = ApproachingTask(robot_model, n_wp)
-    problem_approach.reset_firdge_pose([2.5, 1.5, 0.0])
-    problem_approach.setup(problem_open.av_seq_cache[0])
-    problem_approach.solve()
+    problem_open = generate_door_opening_problem(load_cache=True)
 
-    """
-    #get_current_pose = setup_rosnode()
-    n_wp = 18
-    k_start = 8
-    k_end = 11
-    problem = DoorOpeningTask(robot_model, n_wp, k_start, k_end)
-
-    def create_cache():
-        problem.reset_firdge_pose([2.0, 1.5, 0.0])
-        problem.setup()
-        av_seq = problem.solve()
-        problem.dump_sol_cache()
-
-    def solve(use_sol_cache=False, maxiter=100):
-        problem.load_sol_cache()
+    def solve():
         co = Coordinates()
         robot_model.newcoords(co)
         trans, rpy = get_current_pose()
-        problem.reset_firdge_pose_from_handle_pose(trans, rpy)
-        problem.setup()
-        problem.solve(use_sol_cache=True, maxiter=maxiter)
+        problem_open.reset_firdge_pose_from_handle_pose(trans, rpy)
+        problem_approach.reset_firdge_pose_from_handle_pose(trans, rpy)
+        problem_approach.setup(problem_open.av_seq_cache[0])
+        problem_approach.solve()
 
-    #generate_door_opening_trajectories()
-    #create_cache()
-    """
-    """ simulater demo
-    create_cache()
-    problem.load_sol_cache()
-    problem.reset_firdge_pose([1.5, 1.5, 0.0], [0, 0, -0.3])
-    problem.setup()
-    av_seq = problem.solve(use_sol_cache=True)
-    """
-
-    """
-    problem.load_subsol_cache()
-    problem.reset_firdge_pose([1.5, 1.5, 0.0], [0, 0, -0.3])
-    problem.setup()
-    av_seq = problem.solve(use_sol_cache=True)
-    """
-
-    """
     robot_model2 = pr2_init()
     robot_model2.fksolver = None
     ri = skrobot.interfaces.ros.PR2ROSRobotInterface(robot_model2)
-    ri.move_gripper("rarm", pos=0.06)
+    ri.move_gripper("rarm", pos=0.08)
     ri.angle_vector(robot_model2.angle_vector()) # copy angle vector to real robot
 
-    trans, rpy = get_current_pose()
-    problem.reset_firdge_pose_from_handle_pose(trans, rpy)
-    solve(True)
-    """
+    solve()
+    def send():
+        av_seq = np.vstack([problem_approach.av_seq_cache[:-1], problem_open.av_seq_cache])
+        send_cmd_to_ri(ri, problem_open.robot_model, problem_open.joint_list, 1.0, av_seq)
 
-    """
-    problem.send_cmd_to_ri(ri)
-    t_gripper_close = problem.duration * (problem.k_start-1.0)
-    t_gripper_open = problem.duration * problem.k_end
+        t_gripper_close = problem_open.duration * (n_wp + problem_open.k_start +2)
+        t_gripper_open = problem_open.duration * (n_wp + problem_open.k_end+ 3)
 
-    time.sleep(t_gripper_close)
-    ri.move_gripper("rarm", pos=0.0)
-    time.sleep(t_gripper_open - t_gripper_close)
-    ri.move_gripper("rarm", pos=0.1)
-    """
-    #problem.vis_sol()
+        time.sleep(t_gripper_close)
+        ri.move_gripper("rarm", pos=0.0)
+        time.sleep(t_gripper_open - t_gripper_close)
+        ri.move_gripper("rarm", pos=0.1)
+
