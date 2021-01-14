@@ -49,11 +49,26 @@ def detailbench(func):
     return wrapper
 
 # initialization stuff
-#np.random.seed(0)
 
 class FridgeTask(object):
+    def __init__(self):
+        # visualization stuff
+        self.viewer = None
+        self.constraint_viewer = None
+
+        # cache for MPC
+        self.av_seq_cache = None
+        self.fridge_pose_cache = None # 3dim pose
+
+        self.debug_av_seq_init_cache = None
+
+        # cmd ri
+        self.duration = 0.7
 
     def create_av_init_from_cached_trajectory(self):
+        if self.fridge_pose_cache is None:
+            print("not regeneraed from cached trajectory...")
+            return 
         tf_base2fridge_now = self.fridge.copy_worldcoords()
         tf_base2fridge_pre = self.fridge_pose_cache
 
@@ -82,9 +97,10 @@ class FridgeTask(object):
         av_seq_init[:, -3:-1] = T_composite(traj_planer)
         av_seq_init[:, -1] += (yaw_now - yaw_pre)
 
-        av_seq_init[0, -3:] = np.zeros(3)
+        #av_seq_init[0, -3:] = np.zeros(3)
 
-        self.debug_av_seq_init_cache = av_seq_init
+        self.av_seq_cache = av_seq_init
+        self.fridge_pose_cache = tf_base2fridge_now
         return av_seq_init
 
     def send_cmd_to_ri(self, ri):
@@ -156,6 +172,7 @@ class FridgeTask(object):
         tf_base2fridge = tf_base2handle.transform(tf_handle2fridge)
         self.fridge.newcoords(tf_base2fridge)
         self.fridge.reset_angle()
+        self.create_av_init_from_cached_trajectory()
 
     def reset_firdge_pose(self, trans, rpy=None):
         if rpy is not None:
@@ -166,6 +183,7 @@ class FridgeTask(object):
         co = Coordinates(pos = trans, rot=rot)
         self.fridge.newcoords(co)
         self.fridge.reset_angle()
+        self.create_av_init_from_cached_trajectory()
 
     @bench
     def solve(self, use_sol_cache=False, maxiter=100, only_ik=False):
@@ -200,6 +218,7 @@ class FridgeTask(object):
 
 class ApproachingTask(FridgeTask):
     def __init__(self, robot_model, n_wp):
+        super(ApproachingTask, self).__init__()
         joint_list = rarm_joint_list(robot_model)
         cm = ConstraintManager(n_wp, joint_list, robot_model.fksolver, with_base=True)
         update_fksolver(robot_model)
@@ -219,7 +238,6 @@ class ApproachingTask(FridgeTask):
         # problem parameters
         self.n_wp = n_wp
         self.ftol = 1e-3
-        self.viewer = None
 
     def setup(self, av_goal):
         av_start = get_robot_config(self.robot_model, self.joint_list, with_base=True)
@@ -255,7 +273,8 @@ class ApproachingTask(FridgeTask):
 
 
 class DoorOpeningTask(FridgeTask):
-    def __init__(self, robot_model, n_wp, k_start, k_end, angle_open=0.8):
+    def __init__(self, robot_model, n_wp, k_start, k_end, angle_open=1.0):
+        super(DoorOpeningTask, self).__init__()
         joint_list = rarm_joint_list(robot_model)
         cm = ConstraintManager(n_wp, joint_list, robot_model.fksolver, with_base=True)
         update_fksolver(robot_model)
@@ -283,20 +302,7 @@ class DoorOpeningTask(FridgeTask):
         self.k_start = k_start
         self.k_end = k_end
         self.angle_open = angle_open
-        self.ftol = 1e-3
-
-        # visualization stuff
-        self.viewer = None
-        self.constraint_viewer = None
-
-        # cache for MPC
-        self.av_seq_cache = None
-        self.fridge_pose_cache = None # 3dim pose
-
-        self.debug_av_seq_init_cache = None
-
-        # cmd ri
-        self.duration = 0.7
+        self.ftol = 1e-4
 
     def load_subsol_cache(self):
         name = "subsol_cache.dill"
@@ -318,7 +324,7 @@ class DoorOpeningTask(FridgeTask):
 
         # add left arm constraint 
         co_fridge_inside = self.fridge.copy_worldcoords()
-        co_fridge_inside.translate([0.0, 0.0, 1.2])
+        co_fridge_inside.translate([0.1, 0.0, 1.2])
         trans = co_fridge_inside.worldpos()
         #rpy = rpy_angle(co_fridge_inside.worldrot())[0]
         self.cm.add_pose_constraint(
@@ -387,6 +393,8 @@ def setup_rosnode():
     return (lambda : pose_current["pose"])
 
 def generate_door_opening_problem(load_cache=False):
+
+    np.random.seed(23)
     n_wp = 11
     k_start = 1
     k_end = 4
@@ -410,19 +418,26 @@ def generate_door_opening_problem(load_cache=False):
         av_seq_init = np.array([x_start + w * i for i in range(n_wp)])
         problem.av_seq_cache = av_seq_init
         problem.fridge_pose_cache = problem.fridge.copy_worldcoords()
-        av_seq_sol = problem.solve(use_sol_cache=True)
+        av_seq_sol = problem.solve(use_sol_cache=False)
         if av_seq_sol is not None:
-            problem.dump_sol_cache()
-            return problem
+            problem_approach = ApproachingTask(robot_model, n_wp)
+            problem_approach.reset_firdge_pose([2.0, 1.5, 0.0])
+            problem_approach.setup(av_seq_sol[0])
+            av_seq_approach_sol = problem_approach.solve()
+            if av_seq_approach_sol is not None:
+                # considering the connectivity to the pre-problem
+                problem.dump_sol_cache()
+                return problem
         print("cannot be solved. retry...")
 
 if __name__=='__main__':
     robot_model = pr2_init()
     n_wp = 10
     problem_open = generate_door_opening_problem(load_cache=True)
+    problem_open.reset_firdge_pose([2.5, 1.5, 0.0])
 
     problem_approach = ApproachingTask(robot_model, n_wp)
-    problem_approach.reset_firdge_pose([2.0, 1.5, 0.0])
+    problem_approach.reset_firdge_pose([2.5, 1.5, 0.0])
     problem_approach.setup(problem_open.av_seq_cache[0])
     problem_approach.solve()
 

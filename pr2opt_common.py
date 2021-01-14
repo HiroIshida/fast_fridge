@@ -21,6 +21,7 @@ def rarm_joint_list(robot_model):
 
 def rarm_coll_link_list(robot_model):
     coll_link_list = [
+        robot_model.r_shoulder_lift_link,
         robot_model.base_link,
         robot_model.r_upper_arm_link, robot_model.r_forearm_link,
         robot_model.r_gripper_palm_link, 
