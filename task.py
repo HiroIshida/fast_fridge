@@ -28,6 +28,16 @@ import copy
 
 from sample_from_manifold import ManifoldSampler
 
+from geometry_msgs.msg import Pose
+
+def bench(func):
+    def wrapper(*args, **kwargs):
+        ts = time.time()
+        ret = func(*args, **kwargs)
+        print("elapsed time : {0}".format(time.time() - ts))
+        return ret
+    return wrapper
+
 
 class PoseDependentTask(object):
     def __init__(self, robot_model, n_wp, full_demo=True):
@@ -58,6 +68,7 @@ class PoseDependentTask(object):
         self.av_seq_cache = None
         self.fridge_pose_cache = None
 
+    @bench
     def solve(self, use_cache=False):
         if use_cache:
             av_seq_init = self.create_av_init_from_cached_trajectory()
@@ -89,6 +100,18 @@ class PoseDependentTask(object):
 
     def fridge_door_angle(self, idx):
         raise NotImplementedError
+
+    def reset_firdge_pose_from_handle_pose(self, trans, rpy=None):
+        if rpy is None:
+            rotmat = None
+        else:
+            rotmat = rpy_matrix(rpy[2], rpy[1], rpy[0]) # actually ypr
+        tf_base2handle = make_coords(pos=trans, rot=rotmat)
+        tf_handle2fridge = self.fridge.tf_fridge2handle.inverse_transformation()
+        tf_base2fridge = tf_base2handle.transform(tf_handle2fridge)
+        self.fridge.newcoords(tf_base2fridge)
+        self.fridge.reset_angle()
+        self.create_av_init_from_cached_trajectory()
 
     def reset_firdge_pose(self, trans, rpy=None):
         if rpy is not None:
@@ -340,7 +363,7 @@ class Visualizer(object):
             self.update(av, door_angle)
 
 def generate_solution_cache():
-    np.random.seed(3)
+    np.random.seed(130)
 
     robot_model = pr2_init()
     joint_list = rarm_joint_list(robot_model)
@@ -382,9 +405,38 @@ def generate_solution_cache():
                     return task1, task2, task3
         print("retry..")
 
+def setup_rosnode():
+    rospy.init_node('planner', anonymous=True)
+    pose_current = {"pose": None}
+
+    def cb_pose(msg):
+        pos_msg = msg.position
+        quat_msg = msg.orientation
+        ypr = quaternion2rpy([quat_msg.w, quat_msg.x, quat_msg.y, quat_msg.z])[0]
+        rpy = [ypr[2], ypr[1], ypr[0]]
+        pos = [pos_msg.x, pos_msg.y, pos_msg.z]
+        pose_current["pose"] = [pos, rpy]
+    topic_name = "handle_pose"
+    sub = rospy.Subscriber(topic_name, Pose, cb_pose)
+    return (lambda : pose_current["pose"])
+
+def send_cmd_to_ri(ri, robot_model, joint_list, duration, av_seq):
+    base_pose_seq = av_seq[:, -3:]
+
+    full_av_seq = []
+    for av in av_seq:
+        set_robot_config(robot_model, joint_list, av, with_base=True)
+        full_av_seq.append(robot_model.angle_vector())
+    n_wp = len(full_av_seq)
+
+    time_seq = [duration]*n_wp
+    ri.angle_vector_sequence(full_av_seq, time_seq)
+    ri.move_trajectory_sequence(base_pose_seq, time_seq, send_action=True)
+
 
 if __name__=='__main__':
     #task1, task2, task3 = generate_solution_cache()
+    get_current_pose = setup_rosnode()
 
     vis = Visualizer()
     np.random.seed(3)
@@ -411,3 +463,28 @@ if __name__=='__main__':
     task1.setup(av_start, task2.av_seq_cache[0])
     task1.load_sol_cache()
     task1.solve(use_cache=True)
+
+    robot_model2 = pr2_init()
+    robot_model2.fksolver = None
+    ri = skrobot.interfaces.ros.PR2ROSRobotInterface(robot_model2)
+    ri.move_gripper("rarm", pos=0.08)
+    ri.angle_vector(robot_model2.angle_vector()) # copy angle vector to real robot
+
+    def update():
+        co = Coordinates()
+        robot_model.newcoords(co)
+        trans, rpy = get_current_pose()
+        task3.reset_firdge_pose_from_handle_pose(trans, rpy)
+        task2.reset_firdge_pose_from_handle_pose(trans, rpy)
+        task1.reset_firdge_pose_from_handle_pose(trans, rpy)
+        task1.setup(av_start, task2.av_seq_cache[0])
+        task1.solve(use_cache=False)
+        av_seq = np.vstack([task1.av_seq_cache, task2.av_seq_cache, task3.av_seq_cache])
+        return av_seq
+
+
+
+    print("start solving")
+    av_seq = update()
+    send_cmd_to_ri(ri, robot_model, joint_list, 3.0, av_seq)
+    #send_cmd_to_ri(ri, robot_model, joint_list, 3.0, task2.av_seq_cache)
