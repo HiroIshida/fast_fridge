@@ -26,6 +26,8 @@ from pr2opt_common import *
 from door import Fridge, door_open_angle_seq
 import copy
 
+from sample_from_manifold import ManifoldSampler
+
 
 class PoseDependentTask(object):
     def __init__(self, robot_model, n_wp, full_demo=True):
@@ -153,6 +155,48 @@ class PoseDependentTask(object):
         self.av_seq_cache = av_seq_init
         self.fridge_pose_cache = tf_base2fridge_now
         return av_seq_init
+
+    def sample_from_constraint_manifold(self, k_wp, n_sample=3000, eps=0.2):
+        # call this after setup problem
+        # TODO this method should be inside constraint manager
+
+        # get_joint_limit 
+        fix_negative_inf = lambda x: -6.28 if x == -np.inf else x
+        fix_positive_inf = lambda x: 6.28 if x == np.inf else x
+        j_mins, j_maxs = zip(*[(fix_negative_inf(j.min_angle), fix_positive_inf(j.max_angle))
+            for j in self.joint_list])
+
+        if isinstance(self.sscc.sdf, list):
+            sdf = self.sscc.sdf[k_wp]
+        else:
+            sdf = self.sscc.sdf
+        sscc_here = TinyfkSweptSphereSdfCollisionChecker(sdf, self.robot_model)
+
+        for link in rarm_coll_link_list(self.robot_model):
+            sscc_here.add_collision_link(link)
+
+        eq_const = self.cm.constraint_table[k_wp] 
+        const_func = eq_const.gen_subfunc()
+
+        joint_ids = self.robot_model.fksolver.get_joint_ids([j.name for j in self.joint_list])
+        def predicate(av):
+            sds, _ = sscc_here._compute_batch_sd_vals(joint_ids, np.array([av]), with_base=True)
+            return np.all(sds > 0)
+
+        av_init = eq_const.satisfying_angle_vector(collision_checker=sscc_here)
+        # tweak base
+        j_mins_with_base = np.hstack([j_mins, av_init[-3:]-0.1]) - 1e-3
+        j_maxs_with_base = np.hstack([j_maxs, av_init[-3:]+0.1]) + 1e-3
+
+        assert predicate(av_init)
+        assert np.all(av_init < j_maxs_with_base), "{0} neq {1}".format(av_init, j_maxs_with_base)
+        assert np.all(av_init > j_mins_with_base), "{0} neq {1}".format(av_init, j_mins_with_base)
+        ms = ManifoldSampler(av_init, const_func, j_mins_with_base, j_maxs_with_base,
+                feasible_predicate=predicate, eps=eps)
+        print("Sampling from constraint manifold...")
+        for i in tqdm(range(n_sample)):
+            ms.extend()
+        return ms.get_whole_sample()
 
 class ApproachingTask(PoseDependentTask):
     def __init__(self, robot_model, n_wp):
@@ -295,7 +339,50 @@ class Visualizer(object):
             door_angle = problem.fridge_door_angle(idx)
             self.update(av, door_angle)
 
+def generate_solution_cache():
+    np.random.seed(3)
+
+    robot_model = pr2_init()
+    joint_list = rarm_joint_list(robot_model)
+    av_start = get_robot_config(robot_model, joint_list, with_base=True)
+    av_end = copy.copy(av_start)
+    av_end[-3] = 1.0
+
+    fridge_pose = [[2.0, 1.5, 0.0], [0, 0, 0]]
+
+    n_wp = 10
+    task3 = ReachingTask(robot_model, n_wp)
+    task3.reset_firdge_pose(*fridge_pose)
+    task3.setup()
+
+    N = 10000
+    X3_start = task3.sample_from_constraint_manifold(k_wp=0, n_sample=N, eps=0.1)
+    X3_end = task3.sample_from_constraint_manifold(k_wp=task3.n_wp-1, n_sample=N, eps=0.1)
+    while True:
+        x3_start = X3_start[np.random.randint(X3_start.shape[0])]
+        x3_end = X3_end[np.random.randint(X3_end.shape[0])]
+        w = (x3_end - x3_start)/(n_wp - 1)
+        av_seq_init = np.array([x3_start + w * i for i in range(n_wp)])
+        task3.av_seq_cache = av_seq_init
+        task3.fridge_pose_cache = task3.fridge.copy_worldcoords()
+
+        av_seq_sol3 = task3.solve()
+        if av_seq_sol3 is not None:
+            task2 = OpeningTask(robot_model, 5)
+            task2.reset_firdge_pose(*fridge_pose)
+            task2.setup()
+            task2.cm.add_eq_configuration(task2.n_wp-1, av_seq_sol3[0], force=True)
+            av_seq_sol2 = task2.solve()
+            if av_seq_sol2 is not None:
+                return task2, task3
+        print("retry..")
+
+
 if __name__=='__main__':
+    task2, task3 = generate_solution_cache()
+
+    vis = Visualizer()
+    """
     np.random.seed(3)
 
     robot_model = pr2_init()
@@ -312,16 +399,16 @@ if __name__=='__main__':
     task1.setup(av_start, av_end)
     task1.solve()
 
-    """
     task2 = OpeningTask(robot_model, 5)
     task2.reset_firdge_pose(*fridge_pose)
     task2.setup()
     task2.solve()
-    """
 
     task3 = ReachingTask(robot_model, n_wp)
     task3.reset_firdge_pose(*fridge_pose)
     task3.setup()
+    task3.sample_from_constraint_manifold(k_wp=0, n_sample=10000)
+    task3.sample_from_constraint_manifold(k_wp=0, n_sample=10000)
     task3.solve()
     task3.dump_sol_cache()
 
@@ -333,3 +420,4 @@ if __name__=='__main__':
 
     vis = Visualizer()
     vis.show_task(task3)
+    """
