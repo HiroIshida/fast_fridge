@@ -56,8 +56,11 @@ class PoseDependentTask(object):
         self.av_seq_cache = None
         self.fridge_pose_cache = None
 
-    def solve(self):
-        av_seq_init = self._create_init_trajectory()
+    def solve(self, use_cache=False):
+        if use_cache:
+            av_seq_init = self.create_av_init_from_cached_trajectory()
+        else:
+            av_seq_init = self._create_init_trajectory()
         self.av_seq_init_cache = av_seq_init
 
         slsqp_option = {'ftol': self.ftol, 'disp': True, 'maxiter': 100}
@@ -94,6 +97,62 @@ class PoseDependentTask(object):
         co = Coordinates(pos = trans, rot=rot)
         self.fridge.newcoords(co)
         self.fridge.reset_angle()
+        self.create_av_init_from_cached_trajectory()
+
+    def load_sol_cache(self, name="sol_cache.dill"):
+        prefix = type(self).__name__
+        name = prefix + "_" + name
+        with open(name, "rb") as f:
+            data = dill.load(f)
+            self.av_seq_cache = data["av_seq_cache"]
+            self.fridge_pose_cache = data["fridge_pose_cache"]
+
+    def dump_sol_cache(self, name="sol_cache.dill"):
+        prefix = type(self).__name__
+        name = prefix + "_" + name
+        assert (self.av_seq_cache is not None)
+        data = {"av_seq_cache": self.av_seq_cache,
+                "fridge_pose_cache": self.fridge_pose_cache}
+        with open(name, "wb") as f:
+            dill.dump(data, f)
+
+    def create_av_init_from_cached_trajectory(self):
+        if self.fridge_pose_cache is None:
+            print("not regeneraed from cached trajectory...")
+            return 
+        tf_base2fridge_now = self.fridge.copy_worldcoords()
+        tf_base2fridge_pre = self.fridge_pose_cache
+
+        # NOTE somehow, in applying to vector, we must take inverse
+        traj_planer = np.zeros((self.n_wp, 2))
+        traj_planer[:, 0] = self.av_seq_cache[:, -3]
+        traj_planer[:, 1] = self.av_seq_cache[:, -2] # world
+
+        # The transformatoin should be composite : COMPOSITE(x) = T_F'^I * T_I^F (x)
+        # T_I^F (x) = R(-theta) * (x - o)
+        # T_I^F'(x) = R(theta') * (x - o')
+        # COMPOSITE(x) = T(theta' - theta) * (x - o) + o'
+
+        o_pre = tf_base2fridge_pre.worldpos()[:2]
+        o_now = tf_base2fridge_now.worldpos()[:2]
+        yaw_now = rpy_angle(tf_base2fridge_now.worldrot())[0][0]
+        yaw_pre = rpy_angle(tf_base2fridge_pre.worldrot())[0][0]
+        R = lambda a: np.array([[cos(a), -sin(a)],[sin(a), cos(a)]])
+
+        # transpose because X is array of raw vector
+        def T_composite(X):
+            Rmat = R(yaw_now - yaw_pre)
+            return Rmat.dot((X - o_pre).transpose()).transpose() + o_now 
+
+        av_seq_init = copy.copy(self.av_seq_cache)
+        av_seq_init[:, -3:-1] = T_composite(traj_planer)
+        av_seq_init[:, -1] += (yaw_now - yaw_pre)
+
+        #av_seq_init[0, -3:] = np.zeros(3)
+
+        self.av_seq_cache = av_seq_init
+        self.fridge_pose_cache = tf_base2fridge_now
+        return av_seq_init
 
 class ApproachingTask(PoseDependentTask):
     def __init__(self, robot_model, n_wp):
@@ -269,9 +328,13 @@ if __name__=='__main__':
     task3.reset_firdge_pose(*fridge_pose)
     task3.setup()
     task3.solve()
-    #task3.av_seq_cache = task3.av_seq_init_cache
+    task3.dump_sol_cache()
+
+    fridge_pose = [[1.5, 1.5, 0.0], [0, 0, 0]]
+    task3.load_sol_cache()
+    task3.reset_firdge_pose(*fridge_pose)
+    task3.setup()
+    task3.solve(use_cache=True)
 
     vis = Visualizer()
     vis.show_task(task3)
-
-
