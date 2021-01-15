@@ -29,6 +29,7 @@ import copy
 
 class PoseDependentTask(object):
     def __init__(self, robot_model, n_wp, full_demo=True):
+        update_fksolver(robot_model)
         self.robot_model = robot_model
         self.joint_list = rarm_joint_list(robot_model)
         self.n_wp = n_wp
@@ -107,20 +108,29 @@ class ApproachingTask(PoseDependentTask):
 
 class OpeningTask(PoseDependentTask):
     def __init__(self, robot_model, n_wp):
-        super(ApproachingTask, self).__init__(robot_model, n_wp, True)
+        super(OpeningTask, self).__init__(robot_model, n_wp, True)
         self.angle_open = 1.0
 
     def _create_init_trajectory(self):
-        self.sscc_for_initial_trajectory
-
         av_current = get_robot_config(self.robot_model, self.joint_list, with_base=True)
-        av_seq_init = self.cm.gen_initial_trajectory(
-            av_init=av_current,
-            collision_checker=self.sscc_for_initial_trajectory)
-        return av_seq_init
+
+        constraint_start = self.cm.constraint_table[0]
+        constraint_end = self.cm.constraint_table[self.n_wp-1]
+        sdf_start = self.sscc.sdf[0]
+        sdf_end = self.sscc.sdf[self.n_wp-1]
+        sscc_here = self.sscc_for_initial_trajectory
+
+        sscc_here.set_sdf(sdf_start)
+        av_start = constraint_start.satisfying_angle_vector(av_init=av_current, collision_checker=sscc_here)
+
+        sscc_here.set_sdf(sdf_end)
+        av_end = constraint_end.satisfying_angle_vector(av_init=av_current, collision_checker=sscc_here)
+        w = (av_end - av_start)/(self.n_wp - 1)
+        av_seq_list = np.array([av_start + w * i for i in range(self.n_wp)])
+        return av_seq_list
 
     def fridge_door_angle(self, idx):
-        angle_seq = np.linspace(0, self.angle_open, self.n_wp)
+        angle_seq = np.linspace(0, self.angle_open, self.n_wp-1)
         if idx == 0:
             return 0
         else:
@@ -128,17 +138,16 @@ class OpeningTask(PoseDependentTask):
 
     def setup(self):
         prepare_pose = self.fridge.prepare_gripper_pose()
-        self.cm.add_pose_constraint(0, "r_gripper_tool_frame", prepare_pose, force=True)
         sdf_list = []
-        for idx in range(n_wp-1):
+        for idx in range(self.n_wp):
             angle = self.fridge_door_angle(idx)
-            pose = self.fridge.grasping_gripper_pose(angle)
-            self.cm.add_pose_constraint(0, "r_gripper_tool_frame", force=True)
+            if idx == 0:
+                self.cm.add_pose_constraint(idx, "r_gripper_tool_frame", prepare_pose, force=True)
+            else:
+                pose = self.fridge.grasping_gripper_pose(angle)
+                self.cm.add_pose_constraint(idx, "r_gripper_tool_frame", pose, force=True)
             sdf_list.append(self.fridge.gen_sdf(angle))
-
-        self.cm.add_eq_configuration(0, av_start, force=True)
-        self.cm.add_eq_configuration(self.n_wp-1, av_final, force=True)
-        self.sscc.set_sdf(self.fridge.sdf)
+        self.sscc.set_sdf(sdf_list)
 
 class Visualizer(object):
     def __init__(self):
@@ -183,16 +192,25 @@ class Visualizer(object):
             self.update(av, door_angle)
 
 if __name__=='__main__':
+    np.random.seed(0)
+
     robot_model = pr2_init()
     joint_list = rarm_joint_list(robot_model)
     av_start = get_robot_config(robot_model, joint_list, with_base=True)
     av_end = copy.copy(av_start)
     av_end[-3] = 1.0
 
+    fridge_pose = [[2.0, 1.5, 0.0], [0, 0, 0]]
+
     n_wp = 10
     task1 = ApproachingTask(robot_model, n_wp)
-    task1.reset_firdge_pose([2.0, 1.5, 0.0])
+    task1.reset_firdge_pose(*fridge_pose)
     task1.setup(av_start, av_end)
     task1.solve()
+
+    task2 = OpeningTask(robot_model, 5)
+    task2.reset_firdge_pose(*fridge_pose)
+    task2.setup()
+    task2.solve()
     vis = Visualizer()
-    vis.show_task(task1)
+    vis.show_task(task2)
