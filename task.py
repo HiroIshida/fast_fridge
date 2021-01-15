@@ -15,6 +15,7 @@ from skrobot.coordinates.math import quaternion2rpy
 from skrobot.coordinates import make_coords, rpy_matrix
 from skrobot.coordinates import rpy_angle
 from skrobot.planner import tinyfk_sqp_plan_trajectory
+from skrobot.planner import tinyfk_sqp_inverse_kinematics
 from skrobot.planner import TinyfkSweptSphereSdfCollisionChecker
 from skrobot.planner import ConstraintManager
 from skrobot.planner import ConstraintViewer
@@ -27,16 +28,20 @@ import copy
 
 
 class PoseDependentTask(object):
-    def __init__(self, robot_model, fridge, n_wp, full_demo=True):
+    def __init__(self, robot_model, n_wp, full_demo=True):
         self.robot_model = robot_model
         self.joint_list = rarm_joint_list(robot_model)
         self.n_wp = n_wp
-        self.fridge = fridge
+        self.fridge = Fridge(full_demo)
         self.sscc = TinyfkSweptSphereSdfCollisionChecker(
+                self.fridge.sdf, robot_model)
+
+        self.sscc_for_initial_trajectory = TinyfkSweptSphereSdfCollisionChecker(
                 self.fridge.sdf, robot_model)
 
         for link in rarm_coll_link_list(robot_model):
             self.sscc.add_collision_link(link)
+            self.sscc_for_initial_trajectory.add_collision_link(link)
 
         self.cm = ConstraintManager(
                 self.n_wp, self.joint_list,
@@ -83,15 +88,9 @@ class PoseDependentTask(object):
         self.fridge.newcoords(co)
         self.fridge.reset_angle()
 
-    def visualize_solution(self, viewer):
-        for av in self.av_seq_cache:
-            set_robot_config(self.robot_model, self.joint_list, av, with_base=True)
-            viewer.redraw()
-            time.sleep(0.6)
-
 class ApproachingTask(PoseDependentTask):
-    def __init__(self, robot_model, fridge, n_wp):
-        super(ApproachingTask, self).__init__(robot_model, fridge, n_wp, True)
+    def __init__(self, robot_model, n_wp):
+        super(ApproachingTask, self).__init__(robot_model, n_wp, True)
 
     def _create_init_trajectory(self):
         av_current = get_robot_config(self.robot_model, self.joint_list, with_base=True)
@@ -106,26 +105,94 @@ class ApproachingTask(PoseDependentTask):
         self.cm.add_eq_configuration(self.n_wp-1, av_final, force=True)
         self.sscc.set_sdf(self.fridge.sdf)
 
-def initialize():
+class OpeningTask(PoseDependentTask):
+    def __init__(self, robot_model, n_wp):
+        super(ApproachingTask, self).__init__(robot_model, n_wp, True)
+        self.angle_open = 1.0
+
+    def _create_init_trajectory(self):
+        self.sscc_for_initial_trajectory
+
+        av_current = get_robot_config(self.robot_model, self.joint_list, with_base=True)
+        av_seq_init = self.cm.gen_initial_trajectory(
+            av_init=av_current,
+            collision_checker=self.sscc_for_initial_trajectory)
+        return av_seq_init
+
+    def fridge_door_angle(self, idx):
+        angle_seq = np.linspace(0, self.angle_open, self.n_wp)
+        if idx == 0:
+            return 0
+        else:
+            return angle_seq[idx-1]
+
+    def setup(self):
+        prepare_pose = self.fridge.prepare_gripper_pose()
+        self.cm.add_pose_constraint(0, "r_gripper_tool_frame", prepare_pose, force=True)
+        sdf_list = []
+        for idx in range(n_wp-1):
+            angle = self.fridge_door_angle(idx)
+            pose = self.fridge.grasping_gripper_pose(angle)
+            self.cm.add_pose_constraint(0, "r_gripper_tool_frame", force=True)
+            sdf_list.append(self.fridge.gen_sdf(angle))
+
+        self.cm.add_eq_configuration(0, av_start, force=True)
+        self.cm.add_eq_configuration(self.n_wp-1, av_final, force=True)
+        self.sscc.set_sdf(self.fridge.sdf)
+
+class Visualizer(object):
+    def __init__(self):
+        robot_model = pr2_init()
+        joint_list = rarm_joint_list(robot_model)
+        av_start = get_robot_config(robot_model, joint_list, with_base=True)
+        fridge = Fridge(True)
+
+        self.viewer = skrobot.viewers.TrimeshSceneViewer(resolution=(641, 480))
+        self.viewer.add(robot_model)
+        self.viewer.add(fridge)
+        self.fridge = fridge
+        self.robot_model = robot_model
+        self.joint_list = joint_list
+
+        self.is_shown = False
+
+    def show(self):
+        self.viewer.show()
+        self.is_shown = True
+
+    def update(self, av, door_angle):
+        set_robot_config(self.robot_model, self.joint_list, av, with_base=True)
+        self.fridge.set_angle(door_angle)
+        self.viewer.redraw()
+
+    def show_task(self, problem, idx=None):
+        if not self.is_shown:
+            self.show()
+
+        self.fridge.newcoords(problem.fridge.copy_worldcoords())
+        av_seq_cache = problem.av_seq_cache
+        if idx is None:
+            for idx in range(problem.n_wp):
+                av = av_seq_cache[idx]
+                door_angle = problem.fridge_door_angle(idx)
+                self.update(av, door_angle)
+                time.sleep(0.6)
+        else:
+            av = av_seq_cache[idx]
+            door_angle = problem.fridge_door_angle(idx)
+            self.update(av, door_angle)
+
+if __name__=='__main__':
     robot_model = pr2_init()
     joint_list = rarm_joint_list(robot_model)
     av_start = get_robot_config(robot_model, joint_list, with_base=True)
-    fridge = Fridge(True)
-
-    viewer = skrobot.viewers.TrimeshSceneViewer(resolution=(641, 480))
-    viewer.add(robot_model)
-    viewer.add(fridge)
-    return robot_model, fridge, av_start, viewer
-
-if __name__=='__main__':
-    robot_model, fridge, av_start, viewer = initialize()
     av_end = copy.copy(av_start)
     av_end[-3] = 1.0
 
     n_wp = 10
-    task1 = ApproachingTask(robot_model, fridge, n_wp)
+    task1 = ApproachingTask(robot_model, n_wp)
     task1.reset_firdge_pose([2.0, 1.5, 0.0])
     task1.setup(av_start, av_end)
     task1.solve()
-    viewer.show()
-    task1.visualize_solution(viewer)
+    vis = Visualizer()
+    vis.show_task(task1)
