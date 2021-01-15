@@ -233,12 +233,14 @@ class ReachingTask(PoseDependentTask):
         av_seq_list = np.array([av_start + w * i for i in range(self.n_wp)])
         return av_seq_list
 
-    def setup(self):
+    def setup(self, position=None):
         r_gripper_pose = self.fridge.grasping_gripper_pose(self.angle_open)
 
         co_fridge_inside = self.fridge.copy_worldcoords()
-        co_fridge_inside.translate([0.1, 0.0, 1.2])
-        trans = co_fridge_inside.worldpos()
+
+        if position is None:
+            co_fridge_inside.translate([0.1, 0.0, 1.2])
+            position = co_fridge_inside.worldpos()
         rot = co_fridge_inside.worldrot()
         ypr = rpy_angle(rot)[0] # skrobot's rpy is ypr
         rpy = [ypr[2], ypr[1], ypr[0]]
@@ -246,15 +248,8 @@ class ReachingTask(PoseDependentTask):
         self.cm.add_pose_constraint(0, "r_gripper_tool_frame", r_gripper_pose, force=True)
 
         # final pose
-        l_gripper_pose = np.hstack([trans, rpy])
+        l_gripper_pose = np.hstack([position, rpy])
         self.cm.add_pose_constraint(self.n_wp-1, "l_gripper_tool_frame", l_gripper_pose, force=True)
-        """
-        self.cm.add_multi_pose_constraint(self.n_wp-1, 
-                ["r_gripper_tool_frame", "l_gripper_tool_frame"], 
-                [np.hstack(r_gripper_pose), np.hstack(l_gripper_pose)],
-                force=True)
-        """
-
         sdf_open = self.fridge.gen_sdf(self.angle_open)
         self.sscc.set_sdf(sdf_open)
 
