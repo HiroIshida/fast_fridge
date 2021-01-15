@@ -377,50 +377,37 @@ def generate_solution_cache():
                 task1.setup(av_start, av_seq_sol2[0])
                 av_seq_sol1 = task1.solve()
                 if av_seq_sol1 is not None:
+                    for task in [task1, task2, task3]:
+                        task.dump_sol_cache()
                     return task1, task2, task3
         print("retry..")
 
 
 if __name__=='__main__':
-    task1, task2, task3 = generate_solution_cache()
+    #task1, task2, task3 = generate_solution_cache()
 
     vis = Visualizer()
-    """
     np.random.seed(3)
 
     robot_model = pr2_init()
     joint_list = rarm_joint_list(robot_model)
     av_start = get_robot_config(robot_model, joint_list, with_base=True)
-    av_end = copy.copy(av_start)
-    av_end[-3] = 1.0
 
     fridge_pose = [[2.0, 1.5, 0.0], [0, 0, 0]]
 
-    n_wp = 10
-    task1 = ApproachingTask(robot_model, n_wp)
-    task1.reset_firdge_pose(*fridge_pose)
-    task1.setup(av_start, av_end)
-    task1.solve()
+    task3 = ReachingTask(robot_model, 10)
+    task3.reset_firdge_pose(*fridge_pose)
+    task3.setup()
+    task3.load_sol_cache()
+    #task3.solve(use_cache=True)
 
     task2 = OpeningTask(robot_model, 5)
     task2.reset_firdge_pose(*fridge_pose)
-    task2.setup()
-    task2.solve()
+    task2.load_sol_cache()
+    #task2.solve(use_cache=True)
 
-    task3 = ReachingTask(robot_model, n_wp)
-    task3.reset_firdge_pose(*fridge_pose)
-    task3.setup()
-    task3.sample_from_constraint_manifold(k_wp=0, n_sample=10000)
-    task3.sample_from_constraint_manifold(k_wp=0, n_sample=10000)
-    task3.solve()
-    task3.dump_sol_cache()
-
-    fridge_pose = [[1.5, 1.5, 0.0], [0, 0, 0]]
-    task3.load_sol_cache()
-    task3.reset_firdge_pose(*fridge_pose)
-    task3.setup()
-    task3.solve(use_cache=True)
-
-    vis = Visualizer()
-    vis.show_task(task3)
-    """
+    task1 = ApproachingTask(robot_model, 8)
+    task1.reset_firdge_pose(*fridge_pose)
+    task1.setup(av_start, task2.av_seq_cache[0])
+    task1.load_sol_cache()
+    task1.solve(use_cache=True)
