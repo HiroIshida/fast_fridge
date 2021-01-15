@@ -345,8 +345,6 @@ def generate_solution_cache():
     robot_model = pr2_init()
     joint_list = rarm_joint_list(robot_model)
     av_start = get_robot_config(robot_model, joint_list, with_base=True)
-    av_end = copy.copy(av_start)
-    av_end[-3] = 1.0
 
     fridge_pose = [[2.0, 1.5, 0.0], [0, 0, 0]]
 
@@ -374,12 +372,17 @@ def generate_solution_cache():
             task2.cm.add_eq_configuration(task2.n_wp-1, av_seq_sol3[0], force=True)
             av_seq_sol2 = task2.solve()
             if av_seq_sol2 is not None:
-                return task2, task3
+                task1 = ApproachingTask(robot_model, 8)
+                task1.reset_firdge_pose(*fridge_pose)
+                task1.setup(av_start, av_seq_sol2[0])
+                av_seq_sol1 = task1.solve()
+                if av_seq_sol1 is not None:
+                    return task1, task2, task3
         print("retry..")
 
 
 if __name__=='__main__':
-    task2, task3 = generate_solution_cache()
+    task1, task2, task3 = generate_solution_cache()
 
     vis = Visualizer()
     """
