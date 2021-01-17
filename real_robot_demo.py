@@ -51,15 +51,31 @@ class FridgeDemo(object):
         self.robot_model2.fksolver = None
         self.ri = skrobot.interfaces.ros.PR2ROSRobotInterface(self.robot_model2)
 
-        # real robot stuff
+        # real robot command stuff
         self.duration = 1.0
+
+        # ros stuff
+        self.handle_pose = None
+        sub_handle_pose = rospy.Subscriber(
+                "handle_pose", Pose, self._handle_pose_callback)
+
+
+    def _handle_pose_callback(self, msg):
+        pos_msg = msg.position
+        quat_msg = msg.orientation
+        ypr = quaternion2rpy([quat_msg.w, quat_msg.x, quat_msg.y, quat_msg.z])[0]
+        rpy = [ypr[2], ypr[1], ypr[0]]
+        pos = [pos_msg.x, pos_msg.y, pos_msg.z]
+        self.handle_pose = [pos, rpy]
 
     def initialize_robot_pose(self):
         self.ri.move_gripper("rarm", pos=0.08)
         self.ri.angle_vector(self.robot_model2.angle_vector()) # copy angle vector to real robot
 
-    def update_fridge_pose(self, handle_pose):
-        trans, rpy = handle_pose
+    def update_fridge_pose(self):
+        assert self.handle_pose is not None, "handle pose should be observed"
+
+        trans, rpy = self.handle_pose
         tasks = [self.task_reach, self.task_open, self.task_approach] 
         for task in tasks:
             task.reset_fridge_pose_from_handle_pose(trans, rpy)
@@ -101,17 +117,9 @@ class FridgeDemo(object):
         vis.show_task(self.task_open)
         vis.show_task(self.task_reach)
 
+"""
 def setup_rosnode():
-    rospy.init_node('planner', anonymous=True)
     inner_shared = {"handle_pose": None, "feedback_status": None, "can_pose": None}
-
-    def cb_handle_pose(msg):
-        pos_msg = msg.position
-        quat_msg = msg.orientation
-        ypr = quaternion2rpy([quat_msg.w, quat_msg.x, quat_msg.y, quat_msg.z])[0]
-        rpy = [ypr[2], ypr[1], ypr[0]]
-        pos = [pos_msg.x, pos_msg.y, pos_msg.z]
-        inner_shared["handle_pose"] = [pos, rpy]
 
     def cb_feedback(msg):
         state = msg.feedback.actual.positions
@@ -135,15 +143,16 @@ def setup_rosnode():
     get_feedback_state = (lambda : inner_shared["feedback_status"])
     # TODO TransformManager should be returned from here instead of returning get_can_pose and get_feedback_state
     return get_handle_pose, get_can_pose, get_feedback_state
+"""
 
 if __name__=='__main__':
+    rospy.init_node('planner', anonymous=True)
     vis = Visualizer()
-    get_handle_pose, get_can_pose, get_feedback_state = setup_rosnode()
     np.random.seed(3)
-    
     demo = FridgeDemo()
     demo.initialize_robot_pose()
-    demo.update_fridge_pose(get_handle_pose())
-    demo.solve_first_phase(send_action=True)
-    #demo.simulate(vis)
+    time.sleep(3)
 
+    demo.update_fridge_pose()
+    demo.solve_first_phase(send_action=True)
+    demo.simulate(vis)
