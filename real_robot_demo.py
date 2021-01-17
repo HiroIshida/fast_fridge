@@ -12,26 +12,6 @@ class TransformManager(object):
         # convert it to transform
         pass
 
-def send_cmd_to_ri(ri, robot_model, joint_list, duration, av_seq):
-
-    def modify_base_pose(base_pose_seq):
-        # TODO consider removing the first waypoint
-        base_init = base_pose_seq[0]
-        base_pose_seq = base_pose_seq - base_init
-        return base_pose_seq
-
-    base_pose_seq = modify_base_pose(av_seq[:, -3:])
-
-    full_av_seq = []
-    for av in av_seq:
-        set_robot_config(robot_model, joint_list, av, with_base=True)
-        full_av_seq.append(robot_model.angle_vector())
-    n_wp = len(full_av_seq)
-
-    time_seq = [duration]*n_wp
-    ri.angle_vector_sequence(full_av_seq, time_seq)
-    ri.move_trajectory_sequence(base_pose_seq, time_seq, send_action=True)
-
 class FridgeDemo(object):
     def __init__(self):
         self.robot_model = pr2_init()
@@ -131,34 +111,6 @@ class FridgeDemo(object):
         vis.show_task(self.task_approach)
         vis.show_task(self.task_open)
         vis.show_task(self.task_reach)
-
-"""
-def setup_rosnode():
-    inner_shared = {"handle_pose": None, "feedback_status": None, "can_pose": None}
-
-    def cb_feedback(msg):
-        state = msg.feedback.actual.positions
-        inner_shared["feedback_status"] = state
-
-    def cb_can_pose(msg):
-        p = msg.position
-        q = msg.orientation
-        tf_can_to_base = np.array([p.x, p.y, p.z, q.x, q.y, q.z, q.w])
-        inner_shared["can_pose"] = tf_can_to_base
-
-    topic_name_handle_pose = "handle_pose"
-    topic_name_can_pose = "can_pose"
-    topic_name_feedback = "/base_controller/follow_joint_trajectory/feedback"
-    sub1 = rospy.Subscriber(topic_name_handle_pose, Pose, cb_handle_pose)
-    sub2 = rospy.Subscriber(topic_name_feedback, FollowJointTrajectoryActionFeedback, cb_feedback)
-    sub3 = rospy.Subscriber(topic_name_can_pose, Pose, cb_can_pose)
-
-    get_can_pose = (lambda : inner_shared["can_pose"])
-    get_handle_pose = (lambda : inner_shared["handle_pose"])
-    get_feedback_state = (lambda : inner_shared["feedback_status"])
-    # TODO TransformManager should be returned from here instead of returning get_can_pose and get_feedback_state
-    return get_handle_pose, get_can_pose, get_feedback_state
-"""
 
 if __name__=='__main__':
     rospy.init_node('planner', anonymous=True)
