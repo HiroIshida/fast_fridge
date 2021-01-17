@@ -35,8 +35,8 @@ class FridgeDemo(object):
     def __init__(self):
         self.robot_model = pr2_init()
 
-        joint_list = rarm_joint_list(self.robot_model)
-        av_start = get_robot_config(self.robot_model, joint_list, with_base=True)
+        self.joint_list = rarm_joint_list(self.robot_model)
+        av_start = get_robot_config(self.robot_model, self.joint_list, with_base=True)
         self.av_start = av_start
 
         self.task_approach = ApproachingTask(self.robot_model, 10)
@@ -47,13 +47,16 @@ class FridgeDemo(object):
         self.task_open.load_sol_cache()
         self.task_reach.load_sol_cache()
 
-        robot_model2 = pr2_init() # for robot interface
-        robot_model2.fksolver = None
-        self.ri = skrobot.interfaces.ros.PR2ROSRobotInterface(robot_model2)
+        self.robot_model2 = pr2_init() # for robot interface
+        self.robot_model2.fksolver = None
+        self.ri = skrobot.interfaces.ros.PR2ROSRobotInterface(self.robot_model2)
+
+        # real robot stuff
+        self.duration = 1.0
 
     def initialize_robot_pose(self):
         self.ri.move_gripper("rarm", pos=0.08)
-        self.ri.angle_vector(robot_model2.angle_vector()) # copy angle vector to real robot
+        self.ri.angle_vector(self.robot_model2.angle_vector()) # copy angle vector to real robot
 
     def update_fridge_pose(self, handle_pose):
         trans, rpy = handle_pose
@@ -61,7 +64,7 @@ class FridgeDemo(object):
         for task in tasks:
             task.reset_fridge_pose_from_handle_pose(trans, rpy)
 
-    def solve_first_phase(self):
+    def solve_first_phase(self, send_action=False):
         co = Coordinates()
         self.robot_model.newcoords(co)
         self.task_open.setup(use_cache=True)
@@ -70,6 +73,28 @@ class FridgeDemo(object):
                 av_final=self.task_open.av_seq_cache[0],
                 use_cache=True)
         self.task_approach.solve(use_cache=True)
+
+        if send_action:
+            self.send_cmd(self.task_approach.av_seq_cache)
+
+    def send_cmd(self, av_seq):
+        def modify_base_pose(base_pose_seq):
+            # TODO consider removing the first waypoint
+            base_init = base_pose_seq[0]
+            base_pose_seq = base_pose_seq - base_init
+            return base_pose_seq
+
+        base_pose_seq = modify_base_pose(av_seq[:, -3:])
+
+        full_av_seq = []
+        for av in av_seq:
+            set_robot_config(self.robot_model, self.joint_list, av, with_base=True)
+            full_av_seq.append(self.robot_model.angle_vector())
+        n_wp = len(full_av_seq)
+
+        time_seq = [self.duration]*n_wp
+        self.ri.angle_vector_sequence(full_av_seq, time_seq)
+        self.ri.move_trajectory_sequence(base_pose_seq, time_seq, send_action=True)
 
     def simulate(self, vis):
         vis.show_task(self.task_approach)
@@ -117,52 +142,8 @@ if __name__=='__main__':
     np.random.seed(3)
     
     demo = FridgeDemo()
+    demo.initialize_robot_pose()
     demo.update_fridge_pose(get_handle_pose())
-    demo.solve_first_phase()
-    demo.simulate(vis)
+    demo.solve_first_phase(send_action=True)
+    #demo.simulate(vis)
 
-    """
-    robot_model = pr2_init()
-
-    fridge_pose = [[2.0, 1.5, 0.0], [0, 0, 0]]
-
-    hpose = get_handle_pose()
-    task3 = ReachingTask(robot_model, 10)
-    task3.reset_fridge_pose(*fridge_pose)
-    task3.load_sol_cache()
-    task3.setup(position=None)
-
-    task2 = OpeningTask(robot_model, 10)
-    task2.reset_fridge_pose(*fridge_pose)
-    task2.load_sol_cache()
-    task2.setup()
-
-    task1 = ApproachingTask(robot_model, 10)
-    task1.reset_fridge_pose(*fridge_pose)
-    task1.load_sol_cache()
-    task1.setup(av_start=av_start, av_final=task2.av_seq_cache[0])
-    task1.solve(use_cache=True)
-
-    robot_model2 = pr2_init()
-    robot_model2.fksolver = None
-    ri = skrobot.interfaces.ros.PR2ROSRobotInterface(robot_model2)
-    ri.move_gripper("rarm", pos=0.08)
-    ri.angle_vector(robot_model2.angle_vector()) # copy angle vector to real robot
-    time.sleep(3)
-
-    def first_update():
-        co = Coordinates()
-        robot_model.newcoords(co)
-        trans, rpy = get_handle_pose()
-        task2.reset_fridge_pose_from_handle_pose(trans, rpy)
-        task2.setup()
-        task1.reset_fridge_pose_from_handle_pose(trans, rpy)
-        task1.setup(av_start=av_start, av_final=task2.av_seq_cache[0])
-        task1.solve(use_cache=True)
-        av_seq = np.vstack([task1.av_seq_cache, task2.av_seq_cache, task3.av_seq_cache])
-        return av_seq
-
-    print("start solving")
-    av_seq = first_update()
-    send_cmd_to_ri(ri, robot_model, joint_list, 1.0, task2.av_seq_cache)
-    """
