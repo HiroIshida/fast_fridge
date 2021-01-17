@@ -31,6 +31,51 @@ def send_cmd_to_ri(ri, robot_model, joint_list, duration, av_seq):
     ri.angle_vector_sequence(full_av_seq, time_seq)
     ri.move_trajectory_sequence(base_pose_seq, time_seq, send_action=True)
 
+class FridgeDemo(object):
+    def __init__(self):
+        self.robot_model = pr2_init()
+
+        joint_list = rarm_joint_list(self.robot_model)
+        av_start = get_robot_config(self.robot_model, joint_list, with_base=True)
+        self.av_start = av_start
+
+        self.task_approach = ApproachingTask(self.robot_model, 10)
+        self.task_open = OpeningTask(self.robot_model, 10)
+        self.task_reach = ReachingTask(self.robot_model, 10)
+
+        self.task_approach.load_sol_cache()
+        self.task_open.load_sol_cache()
+        self.task_reach.load_sol_cache()
+
+        robot_model2 = pr2_init() # for robot interface
+        robot_model2.fksolver = None
+        self.ri = skrobot.interfaces.ros.PR2ROSRobotInterface(robot_model2)
+
+    def initialize_robot_pose(self):
+        self.ri.move_gripper("rarm", pos=0.08)
+        self.ri.angle_vector(robot_model2.angle_vector()) # copy angle vector to real robot
+
+    def update_fridge_pose(self, handle_pose):
+        trans, rpy = handle_pose
+        tasks = [self.task_reach, self.task_open, self.task_approach] 
+        for task in tasks:
+            task.reset_fridge_pose_from_handle_pose(trans, rpy)
+
+    def solve_first_phase(self):
+        co = Coordinates()
+        self.robot_model.newcoords(co)
+        self.task_open.setup(use_cache=True)
+        self.task_approach.setup(
+                av_start=self.av_start,
+                av_final=self.task_open.av_seq_cache[0],
+                use_cache=True)
+        self.task_approach.solve(use_cache=True)
+
+    def simulate(self, vis):
+        vis.show_task(self.task_approach)
+        vis.show_task(self.task_open)
+        vis.show_task(self.task_reach)
+
 def setup_rosnode():
     rospy.init_node('planner', anonymous=True)
     inner_shared = {"handle_pose": None, "feedback_status": None, "can_pose": None}
@@ -70,10 +115,14 @@ if __name__=='__main__':
     vis = Visualizer()
     get_handle_pose, get_can_pose, get_feedback_state = setup_rosnode()
     np.random.seed(3)
+    
+    demo = FridgeDemo()
+    demo.update_fridge_pose(get_handle_pose())
+    demo.solve_first_phase()
+    demo.simulate(vis)
 
+    """
     robot_model = pr2_init()
-    joint_list = rarm_joint_list(robot_model)
-    av_start = get_robot_config(robot_model, joint_list, with_base=True)
 
     fridge_pose = [[2.0, 1.5, 0.0], [0, 0, 0]]
 
@@ -116,3 +165,4 @@ if __name__=='__main__':
     print("start solving")
     av_seq = first_update()
     send_cmd_to_ri(ri, robot_model, joint_list, 1.0, task2.av_seq_cache)
+    """
