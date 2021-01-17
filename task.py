@@ -63,6 +63,7 @@ class PoseDependentTask(object):
                 with_base=True)
 
         self.ftol = 1e-4
+        self.angle_open = 1.2
 
         # debug
         self.av_seq_init_cache = None
@@ -84,7 +85,7 @@ class PoseDependentTask(object):
 
         SUCCESS = 0
         print("status: {0}".format(res.status))
-        if res.status in [SUCCESS, 9]:
+        if res.status in [SUCCESS]:
             av_seq = res.x
             self.av_seq_cache = av_seq
             self.fridge_pose_cache = self.fridge.copy_worldcoords()
@@ -246,7 +247,6 @@ class ApproachingTask(PoseDependentTask):
 class OpeningTask(PoseDependentTask):
     def __init__(self, robot_model, n_wp):
         super(OpeningTask, self).__init__(robot_model, n_wp, True)
-        self.angle_open = 1.8
 
     def _create_init_trajectory(self):
         av_current = get_robot_config(self.robot_model, self.joint_list, with_base=True)
@@ -289,7 +289,6 @@ class OpeningTask(PoseDependentTask):
 class ReachingTask(PoseDependentTask):
     def __init__(self, robot_model, n_wp):
         super(ReachingTask, self).__init__(robot_model, n_wp, True)
-        self.angle_open = 1.8
 
     def fridge_door_angle(self, idx):
         return self.angle_open
@@ -368,7 +367,7 @@ class Visualizer(object):
             self.update(av, door_angle)
 
 def generate_solution_cache():
-    np.random.seed(89)
+    np.random.seed(11)
 
     robot_model = pr2_init()
     joint_list = rarm_joint_list(robot_model)
@@ -376,7 +375,7 @@ def generate_solution_cache():
 
     fridge_pose = [[2.0, 1.5, 0.0], [0, 0, 0]]
 
-    n_wp = 20
+    n_wp = 10
     task3 = ReachingTask(robot_model, n_wp)
     task3.reset_firdge_pose(*fridge_pose)
     task3.setup()
@@ -492,4 +491,4 @@ if __name__=='__main__':
 
         print("start solving")
         av_seq = update()
-        #send_cmd_to_ri(ri, robot_model, joint_list, 1.0, av_seq)
+        # send_cmd_to_ri(ri, robot_model, joint_list, 1.0, av_seq)
