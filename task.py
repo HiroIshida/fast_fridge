@@ -74,7 +74,7 @@ class PoseDependentTask(object):
         self.fridge_pose_cache = None
 
     @bench
-    def solve(self, use_cache=False):
+    def solve(self, use_cache=True):
         assert self.is_setup, "plase setup the task before solving"
         self.is_setup = False
 
@@ -100,9 +100,10 @@ class PoseDependentTask(object):
         else:
             return None
 
-    def setup(self, **kwargs):
+    def setup(self, use_cache=True, **kwargs):
         self.is_setup = True
-        self.create_av_init_from_cached_trajectory()
+        if use_cache:
+            self.create_av_init_from_cached_trajectory()
         self._setup(**kwargs)
 
     def _setup(self, **kwargs):
