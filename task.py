@@ -66,6 +66,7 @@ class PoseDependentTask(object):
 
         self.ftol = 1e-4
         self.angle_open = 1.2
+        self.is_setup = False
 
         # debug
         self.av_seq_init_cache = None
@@ -74,6 +75,9 @@ class PoseDependentTask(object):
 
     @bench
     def solve(self, use_cache=False):
+        assert self.is_setup, "plase setup the task before solving"
+        self.is_setup = False
+
         if use_cache:
             av_seq_init = self.create_av_init_from_cached_trajectory()
         else:
@@ -97,6 +101,7 @@ class PoseDependentTask(object):
             return None
 
     def setup(self, **kwargs):
+        self.is_setup = True
         self.create_av_init_from_cached_trajectory()
         self._setup(**kwargs)
 
