@@ -1,5 +1,6 @@
 from pyinstrument import Profiler
 import time
+import threading
 import dill
 from tqdm import tqdm
 
@@ -30,6 +31,7 @@ import copy
 from sample_from_manifold import ManifoldSampler
 
 from geometry_msgs.msg import Pose
+from control_msgs.msg import FollowJointTrajectoryActionFeedback
 
 def bench(func):
     def wrapper(*args, **kwargs):
@@ -324,6 +326,7 @@ class ReachingTask(PoseDependentTask):
         sdf_open = self.fridge.gen_sdf(self.angle_open)
         self.sscc.set_sdf(sdf_open)
 
+
 class Visualizer(object):
     def __init__(self):
         robot_model = pr2_init()
@@ -411,20 +414,49 @@ def generate_solution_cache():
                             return task1, task2, task3
         print("retry..")
 
+class TransformManager(object):
+    # TODO this should be define inside setup_rosnode
+    def __init__(self):
+        self.T_b_to_w = None # 'robot base when cmd is sent' to world transform
+        self.T_bdash_to_b = None # current robot base to world transform
+        self.T_obj_to_rdash = None # object to current robot base
+
+    def set_b_to_w(xytheta):
+        # convert it to transform
+        pass
+
 def setup_rosnode():
     rospy.init_node('planner', anonymous=True)
-    pose_current = {"pose": None}
+    inner_shared = {"handle_pose": None, "feedback_status": None, "can_pose": None}
 
-    def cb_pose(msg):
+    def cb_handle_pose(msg):
         pos_msg = msg.position
         quat_msg = msg.orientation
         ypr = quaternion2rpy([quat_msg.w, quat_msg.x, quat_msg.y, quat_msg.z])[0]
         rpy = [ypr[2], ypr[1], ypr[0]]
         pos = [pos_msg.x, pos_msg.y, pos_msg.z]
-        pose_current["pose"] = [pos, rpy]
-    topic_name = "handle_pose"
-    sub = rospy.Subscriber(topic_name, Pose, cb_pose)
-    return (lambda : pose_current["pose"])
+        inner_shared["handle_pose"] = [pos, rpy]
+
+    def cb_feedback(msg):
+        state = msg.feedback.actual.positions
+        inner_shared["feedback_status"] = state
+
+    def cb_can_pose(msg):
+        p = msg.position
+        q = msg.orientation
+        tf_can_to_base = np.array([p.x, p.y, p.z, q.x, q.y, q.z, q.w])
+        inner_shared["can_pose"] = tf_can_to_base
+
+    topic_name_pose = "handle_pose"
+    topic_name_feedback = "/base_controller/follow_joint_trajectory/feedback"
+    sub1 = rospy.Subscriber(topic_name_pose, Pose, cb_pose)
+    sub2 = rospy.Subscriber(topic_name_feedback, FollowJointTrajectoryActionFeedback, cb_feedback)
+
+    get_can_pose = (lambda : inner_shared["can_pose"])
+    get_handle_pose = (lambda : inner_shared["handle_pose"])
+    get_feedback_state = (lambda : inner_shared["feedback_status"])
+    # TODO TransformManager should be returned from here instead of returning get_can_pose and get_feedback_state
+    return get_handle_pose, get_can_pose, get_feedback_state
 
 def send_cmd_to_ri(ri, robot_model, joint_list, duration, av_seq):
     base_pose_seq = av_seq[:, -3:]
@@ -441,13 +473,13 @@ def send_cmd_to_ri(ri, robot_model, joint_list, duration, av_seq):
 
 
 if __name__=='__main__':
-    do_prepare = True
+    do_prepare = False
     if do_prepare:
         task1, task2, task3 = generate_solution_cache()
         vis = Visualizer()
     else:
         vis = Visualizer()
-        get_current_pose = setup_rosnode()
+        get_handle_pose, get_can_pose, get_feedback_state = setup_rosnode()
         np.random.seed(3)
 
         robot_model = pr2_init()
@@ -456,7 +488,7 @@ if __name__=='__main__':
 
         fridge_pose = [[2.0, 1.5, 0.0], [0, 0, 0]]
 
-        task3 = ReachingTask(robot_model, 20)
+        task3 = ReachingTask(robot_model, 10)
         task3.reset_firdge_pose(*fridge_pose)
         task3.setup()
         task3.load_sol_cache()
@@ -471,11 +503,13 @@ if __name__=='__main__':
         task1.load_sol_cache()
         task1.solve(use_cache=True)
 
+        """
         robot_model2 = pr2_init()
         robot_model2.fksolver = None
         ri = skrobot.interfaces.ros.PR2ROSRobotInterface(robot_model2)
         ri.move_gripper("rarm", pos=0.08)
         ri.angle_vector(robot_model2.angle_vector()) # copy angle vector to real robot
+        """
 
         def update():
             co = Coordinates()
