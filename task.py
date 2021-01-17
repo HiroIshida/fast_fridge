@@ -22,6 +22,7 @@ from skrobot.planner import ConstraintViewer
 from skrobot.planner.utils import get_robot_config
 from skrobot.planner.utils import set_robot_config
 from skrobot.planner.utils import update_fksolver
+from skrobot.planner.utils import gen_augumented_av_seq
 from pr2opt_common import *
 from door import Fridge, door_open_angle_seq
 import copy
@@ -79,11 +80,11 @@ class PoseDependentTask(object):
         slsqp_option = {'ftol': self.ftol, 'disp': True, 'maxiter': 100}
         res = tinyfk_sqp_plan_trajectory(
             self.sscc, self.cm, av_seq_init, self.joint_list, self.n_wp,
-            safety_margin=3e-2, with_base=True, slsqp_option=slsqp_option)
+            safety_margin=5e-2, with_base=True, slsqp_option=slsqp_option)
 
         SUCCESS = 0
         print("status: {0}".format(res.status))
-        if res.status in [SUCCESS]:
+        if res.status in [SUCCESS, 9]:
             av_seq = res.x
             self.av_seq_cache = av_seq
             self.fridge_pose_cache = self.fridge.copy_worldcoords()
@@ -221,6 +222,10 @@ class PoseDependentTask(object):
             ms.extend()
         return ms.get_whole_sample()
 
+    def check_trajectory(self):
+        traj_cache_aug = gen_augumented_av_seq(self.av_seq_cache)
+        return self.sscc.check_trajectory(self.joint_list, traj_cache_aug, with_base=True)
+
 class ApproachingTask(PoseDependentTask):
     def __init__(self, robot_model, n_wp):
         super(ApproachingTask, self).__init__(robot_model, n_wp, True)
@@ -241,7 +246,7 @@ class ApproachingTask(PoseDependentTask):
 class OpeningTask(PoseDependentTask):
     def __init__(self, robot_model, n_wp):
         super(OpeningTask, self).__init__(robot_model, n_wp, True)
-        self.angle_open = 1.0
+        self.angle_open = 1.8
 
     def _create_init_trajectory(self):
         av_current = get_robot_config(self.robot_model, self.joint_list, with_base=True)
@@ -284,7 +289,7 @@ class OpeningTask(PoseDependentTask):
 class ReachingTask(PoseDependentTask):
     def __init__(self, robot_model, n_wp):
         super(ReachingTask, self).__init__(robot_model, n_wp, True)
-        self.angle_open = 1.0
+        self.angle_open = 1.8
 
     def fridge_door_angle(self, idx):
         return self.angle_open
@@ -363,7 +368,7 @@ class Visualizer(object):
             self.update(av, door_angle)
 
 def generate_solution_cache():
-    np.random.seed(130)
+    np.random.seed(89)
 
     robot_model = pr2_init()
     joint_list = rarm_joint_list(robot_model)
@@ -371,12 +376,12 @@ def generate_solution_cache():
 
     fridge_pose = [[2.0, 1.5, 0.0], [0, 0, 0]]
 
-    n_wp = 10
+    n_wp = 20
     task3 = ReachingTask(robot_model, n_wp)
     task3.reset_firdge_pose(*fridge_pose)
     task3.setup()
 
-    N = 10000
+    N = 3000
     X3_start = task3.sample_from_constraint_manifold(k_wp=0, n_sample=N, eps=0.1)
     X3_end = task3.sample_from_constraint_manifold(k_wp=task3.n_wp-1, n_sample=N, eps=0.1)
     while True:
@@ -389,20 +394,22 @@ def generate_solution_cache():
 
         av_seq_sol3 = task3.solve()
         if av_seq_sol3 is not None:
-            task2 = OpeningTask(robot_model, 5)
-            task2.reset_firdge_pose(*fridge_pose)
-            task2.setup()
-            task2.cm.add_eq_configuration(task2.n_wp-1, av_seq_sol3[0], force=True)
-            av_seq_sol2 = task2.solve()
-            if av_seq_sol2 is not None:
-                task1 = ApproachingTask(robot_model, 8)
-                task1.reset_firdge_pose(*fridge_pose)
-                task1.setup(av_start, av_seq_sol2[0])
-                av_seq_sol1 = task1.solve()
-                if av_seq_sol1 is not None:
-                    for task in [task1, task2, task3]:
-                        task.dump_sol_cache()
-                    return task1, task2, task3
+            if task3.check_trajectory():
+                task2 = OpeningTask(robot_model, 10)
+                task2.reset_firdge_pose(*fridge_pose)
+                task2.setup()
+                task2.cm.add_eq_configuration(task2.n_wp-1, av_seq_sol3[0], force=True)
+                av_seq_sol2 = task2.solve()
+                if av_seq_sol2 is not None:
+                    task1 = ApproachingTask(robot_model, 10)
+                    task1.reset_firdge_pose(*fridge_pose)
+                    task1.setup(av_start, av_seq_sol2[0])
+                    av_seq_sol1 = task1.solve()
+                    if av_seq_sol1 is not None:
+                        if task1.check_trajectory():
+                            for task in [task1, task2, task3]:
+                                task.dump_sol_cache()
+                            return task1, task2, task3
         print("retry..")
 
 def setup_rosnode():
@@ -435,56 +442,54 @@ def send_cmd_to_ri(ri, robot_model, joint_list, duration, av_seq):
 
 
 if __name__=='__main__':
-    #task1, task2, task3 = generate_solution_cache()
-    get_current_pose = setup_rosnode()
+    do_prepare = True
+    if do_prepare:
+        task1, task2, task3 = generate_solution_cache()
+        vis = Visualizer()
+    else:
+        vis = Visualizer()
+        get_current_pose = setup_rosnode()
+        np.random.seed(3)
 
-    vis = Visualizer()
-    np.random.seed(3)
+        robot_model = pr2_init()
+        joint_list = rarm_joint_list(robot_model)
+        av_start = get_robot_config(robot_model, joint_list, with_base=True)
 
-    robot_model = pr2_init()
-    joint_list = rarm_joint_list(robot_model)
-    av_start = get_robot_config(robot_model, joint_list, with_base=True)
+        fridge_pose = [[2.0, 1.5, 0.0], [0, 0, 0]]
 
-    fridge_pose = [[2.0, 1.5, 0.0], [0, 0, 0]]
+        task3 = ReachingTask(robot_model, 20)
+        task3.reset_firdge_pose(*fridge_pose)
+        task3.setup()
+        task3.load_sol_cache()
 
-    task3 = ReachingTask(robot_model, 10)
-    task3.reset_firdge_pose(*fridge_pose)
-    task3.setup()
-    task3.load_sol_cache()
-    #task3.solve(use_cache=True)
+        task2 = OpeningTask(robot_model, 10)
+        task2.reset_firdge_pose(*fridge_pose)
+        task2.load_sol_cache()
 
-    task2 = OpeningTask(robot_model, 5)
-    task2.reset_firdge_pose(*fridge_pose)
-    task2.load_sol_cache()
-    #task2.solve(use_cache=True)
-
-    task1 = ApproachingTask(robot_model, 8)
-    task1.reset_firdge_pose(*fridge_pose)
-    task1.setup(av_start, task2.av_seq_cache[0])
-    task1.load_sol_cache()
-    task1.solve(use_cache=True)
-
-    robot_model2 = pr2_init()
-    robot_model2.fksolver = None
-    ri = skrobot.interfaces.ros.PR2ROSRobotInterface(robot_model2)
-    ri.move_gripper("rarm", pos=0.08)
-    ri.angle_vector(robot_model2.angle_vector()) # copy angle vector to real robot
-
-    def update():
-        co = Coordinates()
-        robot_model.newcoords(co)
-        trans, rpy = get_current_pose()
-        task3.reset_firdge_pose_from_handle_pose(trans, rpy)
-        task2.reset_firdge_pose_from_handle_pose(trans, rpy)
-        task1.reset_firdge_pose_from_handle_pose(trans, rpy)
+        task1 = ApproachingTask(robot_model, 10)
+        task1.reset_firdge_pose(*fridge_pose)
         task1.setup(av_start, task2.av_seq_cache[0])
-        task1.solve(use_cache=False)
-        av_seq = np.vstack([task1.av_seq_cache, task2.av_seq_cache, task3.av_seq_cache])
-        return av_seq
+        task1.load_sol_cache()
+        task1.solve(use_cache=True)
 
+        robot_model2 = pr2_init()
+        robot_model2.fksolver = None
+        ri = skrobot.interfaces.ros.PR2ROSRobotInterface(robot_model2)
+        ri.move_gripper("rarm", pos=0.08)
+        ri.angle_vector(robot_model2.angle_vector()) # copy angle vector to real robot
 
+        def update():
+            co = Coordinates()
+            robot_model.newcoords(co)
+            trans, rpy = get_current_pose()
+            task3.reset_firdge_pose_from_handle_pose(trans, rpy)
+            task2.reset_firdge_pose_from_handle_pose(trans, rpy)
+            task1.reset_firdge_pose_from_handle_pose(trans, rpy)
+            task1.setup(av_start, task2.av_seq_cache[0])
+            task1.solve(use_cache=True)
+            av_seq = np.vstack([task1.av_seq_cache, task2.av_seq_cache, task3.av_seq_cache])
+            return av_seq
 
-    print("start solving")
-    av_seq = update()
-    send_cmd_to_ri(ri, robot_model, joint_list, 3.0, av_seq)
-    #send_cmd_to_ri(ri, robot_model, joint_list, 3.0, task2.av_seq_cache)
+        print("start solving")
+        av_seq = update()
+        #send_cmd_to_ri(ri, robot_model, joint_list, 1.0, av_seq)
