@@ -1,4 +1,5 @@
 from task import *
+import threading
 
 class TransformManager(object):
     # TODO this should be define inside setup_rosnode
@@ -59,7 +60,6 @@ class FridgeDemo(object):
         sub_handle_pose = rospy.Subscriber(
                 "handle_pose", Pose, self._handle_pose_callback)
 
-
     def _handle_pose_callback(self, msg):
         pos_msg = msg.position
         quat_msg = msg.orientation
@@ -91,9 +91,24 @@ class FridgeDemo(object):
         self.task_approach.solve(use_cache=True)
 
         if send_action:
-            self.send_cmd(self.task_approach.av_seq_cache)
+            self._send_cmd(self.task_approach.av_seq_cache)
 
-    def send_cmd(self, av_seq):
+    def solve_while_second_phase(self, send_action=False):
+        share_dict = {"pose": None, "result": None, "is_running": True}
+
+        def keep_solvin():
+            while share_dict["is_running"]:
+                self.task_reach.setup(position=None)
+                self.task_reach.solve()
+
+        thread = threading.Thread(target=keep_solvin)
+        thread.start()
+        if send_action:
+            self._send_cmd(self.task_open.av_seq_cache)
+        time.sleep(5) # TODO auto set
+        share_dict["is_running"] = False
+
+    def _send_cmd(self, av_seq):
         def modify_base_pose(base_pose_seq):
             # TODO consider removing the first waypoint
             base_init = base_pose_seq[0]
@@ -154,5 +169,6 @@ if __name__=='__main__':
     time.sleep(3)
 
     demo.update_fridge_pose()
-    demo.solve_first_phase(send_action=True)
-    demo.simulate(vis)
+    #demo.solve_first_phase(send_action=True)
+    demo.solve_while_second_phase(send_action=True)
+    #demo.simulate(vis)
