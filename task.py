@@ -400,7 +400,7 @@ def generate_solution_cache():
     n_wp = 10
     task3 = ReachingTask(robot_model, n_wp)
     task3.reset_fridge_pose(*fridge_pose)
-    task3.setup()
+    task3.setup(use_cache=False, position=None)
 
     N = 3000
     X3_start = task3.sample_from_constraint_manifold(k_wp=0, n_sample=N, eps=0.1)
@@ -413,19 +413,20 @@ def generate_solution_cache():
         task3.av_seq_cache = av_seq_init
         task3.fridge_pose_cache = task3.fridge.copy_worldcoords()
 
-        av_seq_sol3 = task3.solve()
+        task3.setup(use_cache=False, position=None)
+        av_seq_sol3 = task3.solve(use_cache=False)
         if av_seq_sol3 is not None:
             if task3.check_trajectory():
                 task2 = OpeningTask(robot_model, 10)
                 task2.reset_fridge_pose(*fridge_pose)
-                task2.setup()
+                task2.setup(use_cache=False)
                 task2.cm.add_eq_configuration(task2.n_wp-1, av_seq_sol3[0], force=True)
-                av_seq_sol2 = task2.solve()
+                av_seq_sol2 = task2.solve(use_cache=False)
                 if av_seq_sol2 is not None:
                     task1 = ApproachingTask(robot_model, 10)
                     task1.reset_fridge_pose(*fridge_pose)
-                    task1.setup(av_start, av_seq_sol2[0])
-                    av_seq_sol1 = task1.solve()
+                    task1.setup(av_start=av_start, av_final=av_seq_sol2[0], use_cache=False)
+                    av_seq_sol1 = task1.solve(use_cache=False)
                     if av_seq_sol1 is not None:
                         if task1.check_trajectory():
                             for task in [task1, task2, task3]:
