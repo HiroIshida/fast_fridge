@@ -3,15 +3,15 @@
    <link name="base_link">
       <visual>
          <geometry>
-            <box size="0.57 0.53 0.9"/>
+            <box size="0.57 0.53 0.99"/>
          </geometry>
-         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.45"/>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.485"/>
       </visual>
       <collision>
          <geometry>
-            <box size="0.57 0.53 0.9"/>
+            <box size="0.57 0.53 0.99"/>
          </geometry>
-         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.45"/>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.485"/>
       </collision>
    </link>
 
