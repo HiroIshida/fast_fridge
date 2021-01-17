@@ -96,7 +96,12 @@ class PoseDependentTask(object):
         else:
             return None
 
-    def setup(self):
+    def setup(self, **kwargs):
+        self.create_av_init_from_cached_trajectory()
+        self._setup(**kwargs)
+
+    def _setup(self, **kwargs):
+        # task specific setup
         raise NotImplementedError
 
     def _create_init_trajectory(self):
@@ -105,7 +110,7 @@ class PoseDependentTask(object):
     def fridge_door_angle(self, idx):
         raise NotImplementedError
 
-    def reset_firdge_pose_from_handle_pose(self, trans, rpy=None):
+    def reset_fridge_pose_from_handle_pose(self, trans, rpy=None):
         if rpy is None:
             rotmat = None
         else:
@@ -115,9 +120,8 @@ class PoseDependentTask(object):
         tf_base2fridge = tf_base2handle.transform(tf_handle2fridge)
         self.fridge.newcoords(tf_base2fridge)
         self.fridge.reset_angle()
-        self.create_av_init_from_cached_trajectory()
 
-    def reset_firdge_pose(self, trans, rpy=None):
+    def reset_fridge_pose(self, trans, rpy=None):
         if rpy is not None:
             ypr = [rpy[2], rpy[1], rpy[0]]
             rot = rpy_matrix(*ypr)
@@ -126,9 +130,9 @@ class PoseDependentTask(object):
         co = Coordinates(pos = trans, rot=rot)
         self.fridge.newcoords(co)
         self.fridge.reset_angle()
-        self.create_av_init_from_cached_trajectory()
 
     def load_sol_cache(self, name="sol_cache.dill"):
+        print("loading cache...")
         prefix = type(self).__name__
         name = prefix + "_" + name
         with open(name, "rb") as f:
@@ -146,7 +150,8 @@ class PoseDependentTask(object):
             dill.dump(data, f)
 
     def create_av_init_from_cached_trajectory(self):
-        if self.fridge_pose_cache is None:
+        if (self.fridge_pose_cache is None) or (self.av_seq_cache is None):
+            raise Exception("cannot find cached trajectory.")
             print("not regeneraed from cached trajectory...")
             return 
         tf_base2fridge_now = self.fridge.copy_worldcoords()
@@ -241,7 +246,12 @@ class ApproachingTask(PoseDependentTask):
     def fridge_door_angle(self, idx):
         return 0.0
 
-    def setup(self, av_start, av_final):
+    def _setup(self, **kwargs):
+        assert "av_start" in kwargs
+        assert "av_final" in kwargs
+        av_start = kwargs["av_start"]
+        av_final = kwargs["av_final"]
+
         self.cm.add_eq_configuration(0, av_start, force=True)
         self.cm.add_eq_configuration(self.n_wp-1, av_final, force=True)
         self.sscc.set_sdf(self.fridge.sdf)
@@ -275,7 +285,7 @@ class OpeningTask(PoseDependentTask):
         else:
             return angle_seq[idx-1]
 
-    def setup(self):
+    def _setup(self, **kwargs):
         prepare_pose = self.fridge.prepare_gripper_pose()
         sdf_list = []
         for idx in range(self.n_wp):
@@ -306,7 +316,10 @@ class ReachingTask(PoseDependentTask):
         av_seq_list = np.array([av_start + w * i for i in range(self.n_wp)])
         return av_seq_list
 
-    def setup(self, position=None):
+    def _setup(self, **kwargs):
+        assert "position" in kwargs
+        position = kwargs["position"]
+
         r_gripper_pose = self.fridge.grasping_gripper_pose(self.angle_open)
 
         co_fridge_inside = self.fridge.copy_worldcoords()
@@ -380,7 +393,7 @@ def generate_solution_cache():
 
     n_wp = 10
     task3 = ReachingTask(robot_model, n_wp)
-    task3.reset_firdge_pose(*fridge_pose)
+    task3.reset_fridge_pose(*fridge_pose)
     task3.setup()
 
     N = 3000
@@ -398,13 +411,13 @@ def generate_solution_cache():
         if av_seq_sol3 is not None:
             if task3.check_trajectory():
                 task2 = OpeningTask(robot_model, 10)
-                task2.reset_firdge_pose(*fridge_pose)
+                task2.reset_fridge_pose(*fridge_pose)
                 task2.setup()
                 task2.cm.add_eq_configuration(task2.n_wp-1, av_seq_sol3[0], force=True)
                 av_seq_sol2 = task2.solve()
                 if av_seq_sol2 is not None:
                     task1 = ApproachingTask(robot_model, 10)
-                    task1.reset_firdge_pose(*fridge_pose)
+                    task1.reset_fridge_pose(*fridge_pose)
                     task1.setup(av_start, av_seq_sol2[0])
                     av_seq_sol1 = task1.solve()
                     if av_seq_sol1 is not None:
@@ -414,64 +427,6 @@ def generate_solution_cache():
                             return task1, task2, task3
         print("retry..")
 
-class TransformManager(object):
-    # TODO this should be define inside setup_rosnode
-    def __init__(self):
-        self.T_b_to_w = None # 'robot base when cmd is sent' to world transform
-        self.T_bdash_to_b = None # current robot base to world transform
-        self.T_obj_to_rdash = None # object to current robot base
-
-    def set_b_to_w(xytheta):
-        # convert it to transform
-        pass
-
-def setup_rosnode():
-    rospy.init_node('planner', anonymous=True)
-    inner_shared = {"handle_pose": None, "feedback_status": None, "can_pose": None}
-
-    def cb_handle_pose(msg):
-        pos_msg = msg.position
-        quat_msg = msg.orientation
-        ypr = quaternion2rpy([quat_msg.w, quat_msg.x, quat_msg.y, quat_msg.z])[0]
-        rpy = [ypr[2], ypr[1], ypr[0]]
-        pos = [pos_msg.x, pos_msg.y, pos_msg.z]
-        inner_shared["handle_pose"] = [pos, rpy]
-
-    def cb_feedback(msg):
-        state = msg.feedback.actual.positions
-        inner_shared["feedback_status"] = state
-
-    def cb_can_pose(msg):
-        p = msg.position
-        q = msg.orientation
-        tf_can_to_base = np.array([p.x, p.y, p.z, q.x, q.y, q.z, q.w])
-        inner_shared["can_pose"] = tf_can_to_base
-
-    topic_name_pose = "handle_pose"
-    topic_name_feedback = "/base_controller/follow_joint_trajectory/feedback"
-    sub1 = rospy.Subscriber(topic_name_pose, Pose, cb_pose)
-    sub2 = rospy.Subscriber(topic_name_feedback, FollowJointTrajectoryActionFeedback, cb_feedback)
-
-    get_can_pose = (lambda : inner_shared["can_pose"])
-    get_handle_pose = (lambda : inner_shared["handle_pose"])
-    get_feedback_state = (lambda : inner_shared["feedback_status"])
-    # TODO TransformManager should be returned from here instead of returning get_can_pose and get_feedback_state
-    return get_handle_pose, get_can_pose, get_feedback_state
-
-def send_cmd_to_ri(ri, robot_model, joint_list, duration, av_seq):
-    base_pose_seq = av_seq[:, -3:]
-
-    full_av_seq = []
-    for av in av_seq:
-        set_robot_config(robot_model, joint_list, av, with_base=True)
-        full_av_seq.append(robot_model.angle_vector())
-    n_wp = len(full_av_seq)
-
-    time_seq = [duration]*n_wp
-    ri.angle_vector_sequence(full_av_seq, time_seq)
-    ri.move_trajectory_sequence(base_pose_seq, time_seq, send_action=True)
-
-
 if __name__=='__main__':
     do_prepare = False
     if do_prepare:
@@ -479,50 +434,29 @@ if __name__=='__main__':
         vis = Visualizer()
     else:
         vis = Visualizer()
-        get_handle_pose, get_can_pose, get_feedback_state = setup_rosnode()
         np.random.seed(3)
 
         robot_model = pr2_init()
         joint_list = rarm_joint_list(robot_model)
         av_start = get_robot_config(robot_model, joint_list, with_base=True)
 
-        fridge_pose = [[2.0, 1.5, 0.0], [0, 0, 0]]
+        fridge_pose = [[1.8, 1.5, 0.0], [0, 0, 0]]
 
         task3 = ReachingTask(robot_model, 10)
-        task3.reset_firdge_pose(*fridge_pose)
-        task3.setup()
         task3.load_sol_cache()
+        task3.reset_fridge_pose(*fridge_pose)
+        task3.setup(position=None)
 
         task2 = OpeningTask(robot_model, 10)
-        task2.reset_firdge_pose(*fridge_pose)
         task2.load_sol_cache()
+        task2.reset_fridge_pose(*fridge_pose)
+        task2.setup()
 
         task1 = ApproachingTask(robot_model, 10)
-        task1.reset_firdge_pose(*fridge_pose)
-        task1.setup(av_start, task2.av_seq_cache[0])
         task1.load_sol_cache()
-        task1.solve(use_cache=True)
+        task1.reset_fridge_pose(*fridge_pose)
+        task1.setup(av_start=av_start, av_final=task2.av_seq_cache[0])
+        task1.solve(use_cache=False)
 
-        """
-        robot_model2 = pr2_init()
-        robot_model2.fksolver = None
-        ri = skrobot.interfaces.ros.PR2ROSRobotInterface(robot_model2)
-        ri.move_gripper("rarm", pos=0.08)
-        ri.angle_vector(robot_model2.angle_vector()) # copy angle vector to real robot
-        """
-
-        def update():
-            co = Coordinates()
-            robot_model.newcoords(co)
-            trans, rpy = get_current_pose()
-            task3.reset_firdge_pose_from_handle_pose(trans, rpy)
-            task2.reset_firdge_pose_from_handle_pose(trans, rpy)
-            task1.reset_firdge_pose_from_handle_pose(trans, rpy)
-            task1.setup(av_start, task2.av_seq_cache[0])
-            task1.solve(use_cache=True)
-            av_seq = np.vstack([task1.av_seq_cache, task2.av_seq_cache, task3.av_seq_cache])
-            return av_seq
-
-        print("start solving")
-        av_seq = update()
-        # send_cmd_to_ri(ri, robot_model, joint_list, 1.0, av_seq)
+        for task in [task1, task2, task3]:
+            vis.show_task(task)
