@@ -179,6 +179,21 @@
       </collision>
    </link>
 
+   <link name="obstacle_link2">
+      <visual>
+         <geometry>
+            <box size="1.5 1.0 1.7"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.85"/>
+      </visual>
+      <collision>
+         <geometry>
+            <box size="1.5 1.0 1.7"/>
+         </geometry>
+         <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.0 0.85"/>
+      </collision>
+   </link>
+
    <link name="door_link">
       <visual>
          <geometry>
@@ -227,5 +242,12 @@
       <child link="obstacle_link"/>
       <axis xyz="0 0 1"/>
       <origin rpy="0 0 0" xyz="-0.15 1.4 0.0"/>
+   </joint>
+
+   <joint name="obstacle_joint2" type="fixed">
+      <parent link="base_link"/>
+      <child link="obstacle_link2"/>
+      <axis xyz="0 0 1"/>
+      <origin rpy="0 0 0" xyz="-0.8 1.6 0.0"/>
    </joint>
 </robot>
