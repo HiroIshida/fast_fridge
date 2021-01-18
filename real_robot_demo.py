@@ -50,7 +50,7 @@ class FridgeDemo(object):
 
     def initialize_robot_pose(self):
         self.ri.move_gripper("rarm", pos=0.08)
-        self.ri.angle_vector(self.robot_model2.angle_vector()) # copy angle vector to real robot
+        self.ri.angle_vector(self.robot_model2.angle_vector(), time=2.5, time_scale=1.0) # copy angle vector to real robot
 
     def update_fridge_pose(self):
         assert self.handle_pose is not None, "handle pose should be observed"
@@ -72,12 +72,14 @@ class FridgeDemo(object):
 
         if send_action:
             self._send_cmd(self.task_approach.av_seq_cache)
+            time.sleep(self.duration * len(self.task_approach.av_seq_cache))
 
     def solve_while_second_phase(self, send_action=False):
-        share_dict = {"pose": None, "result": None, "is_running": True}
+        share_dict = {"pose": None, "is_running": True}
 
         def keep_solvin():
             while share_dict["is_running"]:
+                self.task_open.setup()
                 self.task_reach.setup(position=None)
                 self.task_reach.solve()
 
@@ -85,7 +87,7 @@ class FridgeDemo(object):
         thread.start()
         if send_action:
             self._send_cmd(self.task_open.av_seq_cache)
-        time.sleep(5) # TODO auto set
+        time.sleep(self.duration * len(self.task_open.av_seq_cache))
         share_dict["is_running"] = False
 
     def _send_cmd(self, av_seq):
@@ -121,6 +123,10 @@ if __name__=='__main__':
     time.sleep(3)
 
     demo.update_fridge_pose()
-    #demo.solve_first_phase(send_action=True)
-    demo.solve_while_second_phase(send_action=True)
+    #is.show_task(demo.task_approach)
+    demo.solve_first_phase(send_action=False)
+    """
+    demo.solve_while_second_phase(send_action=False)
+    """
+    #demo._send_cmd(demo.task_reach.av_seq_cache)
     #demo.simulate(vis)
