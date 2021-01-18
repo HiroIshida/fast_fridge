@@ -118,8 +118,8 @@ class FridgeDemo(object):
         self.task_approach.setup(
                 av_start=self.av_start,
                 av_final=self.task_open.av_seq_cache[0],
-                use_cache=True)
-        self.task_approach.solve(use_cache=True)
+                use_cache=False)
+        self.task_approach.solve(use_cache=False)
 
         if send_action:
             self._send_cmd(self.task_approach.av_seq_cache)
@@ -146,6 +146,10 @@ class FridgeDemo(object):
             # TODO consider removing the first waypoint
             base_init = base_pose_seq[0]
             base_pose_seq = base_pose_seq - base_init
+
+            angle_init = base_init[2]
+            mat = np.array([[cos(angle_init), sin(angle_init)], [-sin(angle_init), cos(angle_init)]])
+            base_pose_seq[:, :2] = base_pose_seq[:, :2].dot(mat.T)
             return base_pose_seq
 
         base_pose_seq = modify_base_pose(av_seq[:, -3:])
