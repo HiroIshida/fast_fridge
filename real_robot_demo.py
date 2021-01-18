@@ -82,7 +82,7 @@ class FridgeDemo(object):
         self.ri = skrobot.interfaces.ros.PR2ROSRobotInterface(self.robot_model2)
 
         # real robot command stuff
-        self.duration = 1.0
+        self.duration = 0.7
 
         # ros stuff
         self.handle_pose = None
@@ -95,7 +95,9 @@ class FridgeDemo(object):
         pos_msg = msg.position
         quat_msg = msg.orientation
         ypr = quaternion2rpy([quat_msg.w, quat_msg.x, quat_msg.y, quat_msg.z])[0]
-        rpy = [ypr[2], ypr[1], ypr[0]]
+        #rpy = [ypr[2], ypr[1], ypr[0]]
+        # TODO adhoc workaround
+        rpy = [0.0, 0.0, ypr[0]]
         pos = [pos_msg.x, pos_msg.y, pos_msg.z]
         self.handle_pose = [pos, rpy]
 
@@ -138,6 +140,7 @@ class FridgeDemo(object):
         thread.start()
         if send_action:
             self._send_cmd(self.task_open.av_seq_cache)
+        self.ri.move_gripper("rarm", pos=0.0)
         time.sleep(self.duration * len(self.task_open.av_seq_cache))
         share_dict["is_running"] = False
 
@@ -179,9 +182,7 @@ if __name__=='__main__':
 
     demo.update_fridge_pose()
     #is.show_task(demo.task_approach)
-    demo.solve_first_phase(send_action=False)
-    """
-    demo.solve_while_second_phase(send_action=False)
-    """
+    demo.solve_first_phase(send_action=True)
+    demo.solve_while_second_phase(send_action=True)
     #demo._send_cmd(demo.task_reach.av_seq_cache)
     #demo.simulate(vis)
