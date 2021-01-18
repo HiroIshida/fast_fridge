@@ -64,7 +64,7 @@ class PoseDependentTask(object):
                 self.robot_model.fksolver,
                 with_base=True)
 
-        self.ftol = 1e-4
+        self.ftol = 5e-3
         self.angle_open = 1.2
         self.is_setup = False
 
@@ -84,6 +84,7 @@ class PoseDependentTask(object):
             av_seq_init = self._create_init_trajectory()
         self.av_seq_init_cache = av_seq_init
 
+        self.cm.check_eqconst_validity(collision_checker=self.sscc)
         slsqp_option = {'ftol': self.ftol, 'disp': True, 'maxiter': 100}
         res = tinyfk_sqp_plan_trajectory(
             self.sscc, self.cm, av_seq_init, self.joint_list, self.n_wp,
@@ -389,7 +390,7 @@ class Visualizer(object):
             self.update(av, door_angle)
 
 def generate_solution_cache():
-    np.random.seed(11)
+    np.random.seed(19)
 
     robot_model = pr2_init()
     joint_list = rarm_joint_list(robot_model)
@@ -447,23 +448,27 @@ if __name__=='__main__':
         joint_list = rarm_joint_list(robot_model)
         av_start = get_robot_config(robot_model, joint_list, with_base=True)
 
-        fridge_pose = [[1.8, 1.5, 0.0], [0, 0, 0]]
+        trans = [1.0, 0.5, 1.05]
+        rpy = [0, 0, 0]
 
         task3 = ReachingTask(robot_model, 10)
         task3.load_sol_cache()
-        task3.reset_fridge_pose(*fridge_pose)
+        task3.reset_fridge_pose_from_handle_pose(trans, rpy)
+        #task3.reset_fridge_pose(*fridge_pose)
         task3.setup(position=None)
 
         task2 = OpeningTask(robot_model, 10)
         task2.load_sol_cache()
-        task2.reset_fridge_pose(*fridge_pose)
+        task2.reset_fridge_pose_from_handle_pose(trans, rpy)
+        #task2.reset_fridge_pose(*fridge_pose)
         task2.setup()
 
         task1 = ApproachingTask(robot_model, 10)
         task1.load_sol_cache()
-        task1.reset_fridge_pose(*fridge_pose)
+        #task1.reset_fridge_pose(*fridge_pose)
+        task1.reset_fridge_pose_from_handle_pose(trans, rpy)
         task1.setup(av_start=av_start, av_final=task2.av_seq_cache[0])
-        task1.solve(use_cache=False)
+        task1.solve(use_cache=True)
 
         for task in [task1, task2, task3]:
             vis.show_task(task)
