@@ -390,7 +390,7 @@ class Visualizer(object):
             self.update(av, door_angle)
 
 def generate_solution_cache():
-    np.random.seed(19)
+    np.random.seed(33)
 
     robot_model = pr2_init()
     joint_list = rarm_joint_list(robot_model)
@@ -403,7 +403,7 @@ def generate_solution_cache():
     task3.reset_fridge_pose(*fridge_pose)
     task3.setup(use_cache=False, position=None)
 
-    N = 3000
+    N = 10000
     X3_start = task3.sample_from_constraint_manifold(k_wp=0, n_sample=N, eps=0.1)
     X3_end = task3.sample_from_constraint_manifold(k_wp=task3.n_wp-1, n_sample=N, eps=0.1)
     while True:
@@ -436,7 +436,7 @@ def generate_solution_cache():
         print("retry..")
 
 if __name__=='__main__':
-    do_prepare = False
+    do_prepare = True
     if do_prepare:
         task1, task2, task3 = generate_solution_cache()
         vis = Visualizer()
