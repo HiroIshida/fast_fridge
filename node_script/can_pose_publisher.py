@@ -4,7 +4,7 @@ import rospy
 import numpy as np
 from std_msgs.msg import String
 from posedetection_msgs.msg import ObjectDetection
-from geometry_msgs.msg import PoseArray
+from geometry_msgs.msg import PoseArray, Pose
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 import tf
@@ -23,9 +23,9 @@ if __name__ == '__main__':
     pose_array_topic_name = "/ishida_demo/cluster_decomposer/centroid_pose_array"
     sub1 = message_filters.Subscriber(odom_topic_name, Odometry)
     sub2 = message_filters.Subscriber(pose_array_topic_name, PoseArray)
+    pub = rospy.Publisher('pose_can_to_odom', Pose, queue_size=1)
 
     def callbcak(msg_odom, msg_pose_array):
-        print("rec")
         pos = msg_odom.pose.pose.position
         rot = msg_odom.pose.pose.orientation
         tf_base_to_odom = ([pos.x, pos.y, pos.z], [rot.x, rot.y, rot.z, rot.w])
@@ -48,7 +48,8 @@ if __name__ == '__main__':
         tf_can_to_camera = ([pos.x, pos.y, pos.z], [rot.x, rot.y, rot.z, rot.w])
         tf_can_to_base = utils.convert(tf_can_to_camera, tf_camera_to_foot)
         tf_can_to_odom = utils.convert(tf_can_to_base, tf_base_to_odom)
-        print(tf_can_to_odom)
+        pose_can_to_odom = utils.convert_tf2posemsg(tf_can_to_odom)
+        pub.publish(pose_can_to_odom)
 
     ts = message_filters.ApproximateTimeSynchronizer([sub1, sub2], 200, 0.2)
     ts.registerCallback(callbcak)
