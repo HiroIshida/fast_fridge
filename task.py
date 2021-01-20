@@ -74,7 +74,7 @@ class PoseDependentTask(object):
         self.fridge_pose_cache = None
 
     @bench
-    def solve(self, use_cache=True):
+    def solve(self, use_cache=True, callback=None):
         assert self.is_setup, "plase setup the task before solving"
         self.is_setup = False
 
@@ -88,7 +88,8 @@ class PoseDependentTask(object):
         slsqp_option = {'ftol': self.ftol, 'disp': True, 'maxiter': 100}
         res = tinyfk_sqp_plan_trajectory(
             self.sscc, self.cm, av_seq_init, self.joint_list, self.n_wp,
-            safety_margin=5e-2, with_base=True, slsqp_option=slsqp_option)
+            safety_margin=5e-2, with_base=True, slsqp_option=slsqp_option,
+            callback=callback)
 
         SUCCESS = 0
         print("status: {0}".format(res.status))

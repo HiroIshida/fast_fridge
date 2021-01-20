@@ -4,6 +4,8 @@ from nav_msgs.msg import Odometry
 from skrobot.coordinates.math import wxyz2xyzw, matrix2quaternion
 import tf
 
+class TakingTooLongException(Exception):
+    pass
 
 def qv_mult(q1, v1_):
     length = np.linalg.norm(v1_)
@@ -166,11 +168,24 @@ class FridgeDemo(object):
     def solve_while_second_phase(self, send_action=False):
         share_dict = {"pose": None, "is_running": True}
 
+        ts_optimization = time.time()
+
         def keep_solvin():
+
+            def callback(xk):
+                ts_now = time.time()
+                time_elapsed = ts_now - ts_optimization
+                if time_elapsed > 0.5:
+                    raise TakingTooLongException
+
             while share_dict["is_running"]:
                 self.task_open.setup()
-                self.task_reach.setup(position=None)
-                self.task_reach.solve()
+                trans = self.tf_can_to_world[0]
+                self.task_reach.setup(position=trans)
+                try:
+                    self.task_reach.solve(callback=callback)
+                except TakingTooLongException:
+                    print("optimization aborted because of the elapsed time")
 
         thread = threading.Thread(target=keep_solvin)
         thread.start()
