@@ -381,6 +381,8 @@ class Visualizer(object):
         if not self.is_shown:
             self.show()
 
+        cv = ConstraintViewer(self.viewer, problem.cm)
+        cv.show()
         self.fridge.newcoords(problem.fridge.copy_worldcoords())
         av_seq_cache = problem.av_seq_cache
         if idx is None:
@@ -393,6 +395,7 @@ class Visualizer(object):
             av = av_seq_cache[idx]
             door_angle = problem.fridge_door_angle(idx)
             self.update(av, door_angle)
+        cv.delete()
 
 def generate_solution_cache():
     np.random.seed(33)
