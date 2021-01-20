@@ -168,32 +168,45 @@ class FridgeDemo(object):
     def solve_while_second_phase(self, send_action=False):
         share_dict = {"pose": None, "is_running": True}
 
-        ts_optimization = time.time()
 
+        log_prefix = "[SECOND] " 
         def keep_solvin():
+            share_in_solving = {"ts_optimization": None}
 
             def callback(xk):
                 ts_now = time.time()
-                time_elapsed = ts_now - ts_optimization
-                if time_elapsed > 0.5:
+                time_elapsed = ts_now - share_in_solving["ts_optimization"]
+                if time_elapsed > 1.0:
+                    rospy.loginfo(log_prefix + "aborted due to taking too much in solving. elapsed {0}".format(time_elapsed))
                     raise TakingTooLongException
 
             while share_dict["is_running"]:
-                self.task_open.setup()
-                trans = self.tf_can_to_world[0]
-                self.task_reach.setup(position=trans)
-                try:
-                    self.task_reach.solve(callback=callback)
-                except TakingTooLongException:
-                    print("optimization aborted because of the elapsed time")
+                if self.tf_can_to_world is not None:
+                    self.task_open.setup()
+                    share_in_solving["ts_optimization"] = time.time()
+                    trans = self.tf_can_to_world[0]
+                    rospy.loginfo(log_prefix + "try to solve for can position {0}".format(trans))
+                    self.task_reach.setup(position=trans)
+                    try:
+                        self.task_reach.solve(callback=callback)
+                        rospy.loginfo(log_prefix + "successfully solved")
+                    except TakingTooLongException:
+                        pass
+                rospy.loginfo(log_prefix + "aborted because tf_can_to_wrold is None")
+
+        if send_action:
+            self._send_cmd(self.task_open.av_seq_cache)
+            self.ri.move_gripper("rarm", pos=0.0)
 
         thread = threading.Thread(target=keep_solvin)
         thread.start()
-        if send_action:
-            self._send_cmd(self.task_open.av_seq_cache)
-        self.ri.move_gripper("rarm", pos=0.0)
+
         time.sleep(self.duration * len(self.task_open.av_seq_cache))
         share_dict["is_running"] = False
+
+    def execute_third_phase(self, send_action=False):
+        if send_action:
+            self._send_cmd(self.task_reach.av_seq_cache)
 
     def _send_cmd(self, av_seq):
         def modify_base_pose(base_pose_seq):
@@ -221,6 +234,8 @@ class FridgeDemo(object):
         # set transforms for later tf computation
         self.tf_base_nominal_to_odom = self.tf_base_to_odom
         self.tf_base_nominal_to_world = tf_from_xytheta(av_seq[0, -3:])
+        rospy.loginfo("[_send_cmd] start configuration of av_seq is : {0}".format(av_seq[0]))
+        rospy.loginfo("[_send_cmd] start base config of av_seq is : {0}".format(av_seq[0][-3:]))
 
     def simulate(self, vis):
         vis.show_task(self.task_approach)
@@ -238,3 +253,4 @@ if __name__=='__main__':
     demo.update_fridge_pose()
     demo.solve_first_phase(send_action=True)
     demo.solve_while_second_phase(send_action=True)
+    demo.execute_third_phase(send_action=True)
