@@ -204,7 +204,13 @@ class FridgeDemo(object):
         time.sleep(self.duration * len(self.task_open.av_seq_cache))
         share_dict["is_running"] = False
 
-    def execute_third_phase(self, send_action=False):
+    def solve_third_phase(self, send_action=False):
+        assert (self.tf_can_to_world is not None)
+        if self.tf_can_to_world is not None:
+            trans = self.tf_can_to_world[0]
+            av_start = self.task_open.av_seq_cache[-1]
+            self.task_reach.setup(position=trans, av_start=av_start, use_cache=True)
+            self.task_reach.solve(use_cache=True)
         if send_action:
             self._send_cmd(self.task_reach.av_seq_cache)
 
@@ -253,4 +259,5 @@ if __name__=='__main__':
     demo.update_fridge_pose()
     demo.solve_first_phase(send_action=True)
     demo.solve_while_second_phase(send_action=True)
-    demo.execute_third_phase(send_action=True)
+    demo.solve_third_phase(send_action=False)
+    vis.show_task(demo.task_reach)

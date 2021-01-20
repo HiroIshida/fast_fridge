@@ -339,7 +339,11 @@ class ReachingTask(PoseDependentTask):
         ypr = rpy_angle(rot)[0] # skrobot's rpy is ypr
         rpy = [ypr[2], ypr[1], ypr[0]]
 
-        self.cm.add_pose_constraint(0, "r_gripper_tool_frame", r_gripper_pose, force=True)
+        if "av_start" in kwargs:
+            self.cm.add_eq_configuration(0, kwargs["av_start"], force=True)
+        else:
+            print("[IMPORTANT] because av_start is not set, we solve using pose constraint")
+            self.cm.add_pose_constraint(0, "r_gripper_tool_frame", r_gripper_pose, force=True)
 
         # final pose
         l_gripper_pose = np.hstack([position, rpy])
