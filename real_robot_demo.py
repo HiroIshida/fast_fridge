@@ -41,7 +41,7 @@ def convert(tf_12, tf_23):
 
 def tf_from_xytheta(xytheta):
     x, y, theta = xytheta
-    pos = [x, y, theta]
+    pos = [x, y, 0.0]
     rot = rpy_matrix(*[theta, 0, 0])
     quat = wxyz2xyzw(matrix2quaternion(rot))
     tf = [pos, quat.tolist()]
