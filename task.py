@@ -79,7 +79,7 @@ class PoseDependentTask(object):
         self.is_setup = False
 
         if use_cache:
-            av_seq_init = self.create_av_init_from_cached_trajectory()
+            av_seq_init = self.av_seq_cache
         else:
             av_seq_init = self._create_init_trajectory()
         self.av_seq_init_cache = av_seq_init
@@ -88,7 +88,7 @@ class PoseDependentTask(object):
         slsqp_option = {'ftol': self.ftol, 'disp': True, 'maxiter': 100}
         res = tinyfk_sqp_plan_trajectory(
             self.sscc, self.cm, av_seq_init, self.joint_list, self.n_wp,
-            safety_margin=5e-2, with_base=True, slsqp_option=slsqp_option,
+            safety_margin=2e-2, with_base=True, slsqp_option=slsqp_option,
             callback=callback)
 
         SUCCESS = 0
@@ -325,6 +325,9 @@ class ReachingTask(PoseDependentTask):
         return av_seq_list
 
     def _setup(self, **kwargs):
+        sdf_open = self.fridge.gen_sdf(self.angle_open)
+        self.sscc.set_sdf(sdf_open)
+
         assert "position" in kwargs
         position = kwargs["position"]
 
@@ -339,6 +342,22 @@ class ReachingTask(PoseDependentTask):
         ypr = rpy_angle(rot)[0] # skrobot's rpy is ypr
         rpy = [ypr[2], ypr[1], ypr[0]]
 
+        # solve ik with collision constraint
+        if self.av_seq_cache is not None:
+            frame_name_list = ["l_gripper_tool_frame"]
+            target_pose_list = [np.hstack([position, rpy])]
+            av_goal = self.av_seq_cache[-1]
+            av_goal_new = tinyfk_sqp_inverse_kinematics(
+                    frame_name_list, 
+                    target_pose_list, 
+                    av_goal, 
+                    self.joint_list,
+                    self.robot_model.fksolver,
+                    collision_checker=self.sscc,
+                    strategy="multi",
+                    with_base=True)
+            self.av_seq_cache[-1] = av_goal_new
+
         if "av_start" in kwargs:
             self.cm.add_eq_configuration(0, kwargs["av_start"], force=True)
         else:
@@ -348,8 +367,6 @@ class ReachingTask(PoseDependentTask):
         # final pose
         l_gripper_pose = np.hstack([position, rpy])
         self.cm.add_pose_constraint(self.n_wp-1, "l_gripper_tool_frame", l_gripper_pose, force=True)
-        sdf_open = self.fridge.gen_sdf(self.angle_open)
-        self.sscc.set_sdf(sdf_open)
 
 
 class Visualizer(object):
@@ -444,7 +461,7 @@ def generate_solution_cache():
         print("retry..")
 
 if __name__=='__main__':
-    do_prepare = True
+    do_prepare = False
     if do_prepare:
         task1, task2, task3 = generate_solution_cache()
         vis = Visualizer()
@@ -456,14 +473,19 @@ if __name__=='__main__':
         joint_list = rarm_joint_list(robot_model)
         av_start = get_robot_config(robot_model, joint_list, with_base=True)
 
-        trans = [1.0, 0.5, 1.05]
-        rpy = [0, 0, 0]
+        trans = [0.9169080151251682, 0.1125324577251463, 1.06083550540037]
+        #trans = [0.9169080151251682, 0.1125324577251463, 1.06083550540037]
+        rpy = [0.0, 0.0, -0.3151299552985494]
 
         task3 = ReachingTask(robot_model, 10)
         task3.load_sol_cache()
         task3.reset_fridge_pose_from_handle_pose(trans, rpy)
         #task3.reset_fridge_pose(*fridge_pose)
-        task3.setup(position=None)
+        #pos = [1.2282455237447933, -0.33, 1.2071411401543952]
+        pos = [1.2782455237447933, -0.08, 1.2071411401543952]
+        #pos = [1.2282455237447933, -0.04, 1.2071411401543952]
+        task3.setup(position=pos)
+        task3.solve()
 
         task2 = OpeningTask(robot_model, 10)
         task2.load_sol_cache()
@@ -480,3 +502,4 @@ if __name__=='__main__':
 
         for task in [task1, task2, task3]:
             vis.show_task(task)
+
