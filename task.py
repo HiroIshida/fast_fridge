@@ -65,6 +65,7 @@ class PoseDependentTask(object):
                 self.robot_model.fksolver,
                 with_base=True)
 
+        self.safety_margin = 3e-2
         self.ftol = 5e-3
         self.angle_open = 1.2
         self.is_setup = False
@@ -89,7 +90,7 @@ class PoseDependentTask(object):
         slsqp_option = {'ftol': self.ftol, 'disp': True, 'maxiter': 100}
         res = tinyfk_sqp_plan_trajectory(
             self.sscc, self.cm, av_seq_init, self.joint_list, self.n_wp,
-            safety_margin=2e-2, with_base=True, slsqp_option=slsqp_option,
+            safety_margin=self.safety_margin, with_base=True, slsqp_option=slsqp_option,
             callback=callback)
 
         SUCCESS = 0
@@ -350,7 +351,7 @@ class ReachingTask(PoseDependentTask):
         co_fridge_inside = self.fridge.copy_worldcoords()
 
         if position is None:
-            co_fridge_inside.translate([0.1, 0.0, 1.2])
+            co_fridge_inside.translate([-0.0, 0.04, 1.2])
             position = co_fridge_inside.worldpos()
         rot = co_fridge_inside.worldrot()
         ypr = rpy_angle(rot)[0] # skrobot's rpy is ypr
@@ -358,6 +359,7 @@ class ReachingTask(PoseDependentTask):
 
         # solve ik with collision constraint
         if self.av_seq_cache is not None:
+            print("solve collision ik")
             frame_name_list = ["l_gripper_tool_frame"]
             target_pose_list = [np.hstack([position, rpy])]
             av_goal = self.av_seq_cache[-1]
@@ -408,7 +410,7 @@ class Visualizer(object):
         self.fridge.set_angle(door_angle)
         self.viewer.redraw()
 
-    def show_task(self, problem, idx=None):
+    def show_task(self, problem, idx=None, t_sleep=0.5):
         if not self.is_shown:
             self.show()
 
@@ -421,7 +423,7 @@ class Visualizer(object):
                 av = av_seq_cache[idx]
                 door_angle = problem.fridge_door_angle(idx)
                 self.update(av, door_angle)
-                time.sleep(0.6)
+                time.sleep(t_sleep)
         else:
             av = av_seq_cache[idx]
             door_angle = problem.fridge_door_angle(idx)
@@ -429,34 +431,29 @@ class Visualizer(object):
         cv.delete()
 
 def generate_solution_cache():
-    np.random.seed(33)
+    np.random.seed(50)
 
     robot_model = pr2_init()
     joint_list = rarm_joint_list(robot_model)
     av_start = get_robot_config(robot_model, joint_list, with_base=True)
 
-    fridge_pose = [[2.0, 1.5, 0.0], [0, 0, 0]]
+    fridge_pose = [[2.0, 1.51, 0.0], [0, 0, 0]]
 
     n_wp = 10
     task3 = ReachingTask(robot_model, n_wp)
     task3.reset_fridge_pose(*fridge_pose)
     task3.setup(use_cache=False, position=None)
 
-    N = 2000
-    X3_start = task3.sample_from_constraint_manifold(k_wp=0, n_sample=N, eps=0.1)
-    X3_end = task3.sample_from_constraint_manifold(k_wp=task3.n_wp-1, n_sample=N, eps=0.1)
     while True:
-        x3_start = X3_start[np.random.randint(X3_start.shape[0])]
-        x3_end = X3_end[np.random.randint(X3_end.shape[0])]
-        w = (x3_end - x3_start)/(n_wp - 1)
-        av_seq_init = np.array([x3_start + w * i for i in range(n_wp)])
-        task3.av_seq_cache = av_seq_init
         task3.fridge_pose_cache = task3.fridge.copy_worldcoords()
-
         task3.setup(use_cache=False, position=None)
         av_seq_sol3 = task3.solve(use_cache=False)
         if av_seq_sol3 is not None:
-            if task3.check_trajectory():
+            is_feasible_trajectory = task3.check_trajectory()
+            print("is feasible trajectory? {0}".format(is_feasible_trajectory))
+
+            if is_feasible_trajectory:
+                print("task3 finished. start solving task2")
                 task2 = OpeningTask(robot_model, 10)
                 task2.reset_fridge_pose(*fridge_pose)
                 task2.setup(use_cache=False)
@@ -489,33 +486,30 @@ if __name__=='__main__':
         joint_list = rarm_joint_list(robot_model)
         av_start = get_robot_config(robot_model, joint_list, with_base=True)
 
-        trans = [0.9169080151251682, 0.1125324577251463, 1.06083550540037]
-        #trans = [0.9169080151251682, 0.1125324577251463, 1.06083550540037]
-        rpy = [0.0, 0.0, -0.3151299552985494]
 
         task3 = ReachingTask(robot_model, 10)
         task3.load_sol_cache()
+        """
+        trans = [0.9169080151251682, 0.1125324577251463, 1.02]
+        rpy = [0.0, 0.0, -0.3151299552985494]
         task3.reset_fridge_pose_from_handle_pose(trans, rpy)
-        #task3.reset_fridge_pose(*fridge_pose)
-        #pos = [1.2282455237447933, -0.33, 1.2071411401543952]
-        pos = [1.2782455237447933, -0.08, 1.2071411401543952]
-        #pos = [1.2282455237447933, -0.04, 1.2071411401543952]
-        task3.setup(position=pos)
-        task3.solve()
+        """
+        fridge_pose = [[2.0, 1.5, 0.00], [0, 0, 0]]
+        task3.reset_fridge_pose(*fridge_pose)
+        task3.setup(position=None, use_cache=True)
+        res = task3.sscc.check_trajectory(task3.joint_list, task3.av_seq_cache, with_base=True, verbose=True)
+        print(res)
 
-        task2 = OpeningTask(robot_model, 10)
-        task2.load_sol_cache()
-        task2.reset_fridge_pose_from_handle_pose(trans, rpy)
-        #task2.reset_fridge_pose(*fridge_pose)
-        task2.setup()
+        sol_history = {"data": [task3.av_seq_cache]}
 
-        task1 = ApproachingTask(robot_model, 10)
-        task1.load_sol_cache()
-        #task1.reset_fridge_pose(*fridge_pose)
-        task1.reset_fridge_pose_from_handle_pose(trans, rpy)
-        task1.setup(av_start=av_start, av_final=task2.av_seq_cache[0])
-        task1.solve(use_cache=True)
+        def callback(x):
+            sol_history["data"].append(x)
+        task3.solve(callback=callback, use_cache=True)
 
-        for task in [task1, task2, task3]:
-            vis.show_task(task)
-
+        for i in range(len(sol_history["data"])-1):
+        #for i in range(2):
+            av_seq = sol_history["data"][i].reshape(task3.n_wp, -1)
+            task3.av_seq_cache = av_seq
+            res = task3.sscc.check_trajectory(task3.joint_list, av_seq, with_base=True)
+            print(res)
+            vis.show_task(task3, t_sleep=0.1)
