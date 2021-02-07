@@ -17,6 +17,7 @@ from skrobot.coordinates import make_coords, rpy_matrix
 from skrobot.coordinates import rpy_angle
 from skrobot.planner import tinyfk_sqp_plan_trajectory
 from skrobot.planner import tinyfk_sqp_inverse_kinematics
+from skrobot.planner import tinyfk_measure_nullspace
 from skrobot.planner import TinyfkSweptSphereSdfCollisionChecker
 from skrobot.planner import ConstraintManager
 from skrobot.planner import ConstraintViewer
@@ -239,7 +240,7 @@ class PoseDependentTask(object):
         return ms.get_whole_sample()
 
     def check_trajectory(self):
-        traj_cache_aug = gen_augumented_av_seq(self.av_seq_cache)
+        traj_cache_aug = gen_augumented_av_seq(self.av_seq_cache, n_mid=5)
         return self.sscc.check_trajectory(self.joint_list, traj_cache_aug, with_base=True)
 
 class ApproachingTask(PoseDependentTask):
@@ -316,10 +317,23 @@ class ReachingTask(PoseDependentTask):
     def _create_init_trajectory(self):
         av_current = get_robot_config(self.robot_model, self.joint_list, with_base=True)
 
+        def is_large_enough_ns(angle_vector):
+            null_space_measure = tinyfk_measure_nullspace(angle_vector, self.joint_list,
+                    "l_gripper_tool_frame", self.robot_model.fksolver, with_base=True)
+            print("nullspace size {0}".format(null_space_measure))
+            return (null_space_measure > 4.0)
+
         constraint_start = self.cm.constraint_table[0]
         constraint_end = self.cm.constraint_table[self.n_wp-1]
-        av_start = constraint_start.satisfying_angle_vector(av_init=av_current, collision_checker=self.sscc)
-        av_end = constraint_end.satisfying_angle_vector(av_init=av_current, collision_checker=self.sscc)
+
+        while True:
+            av_start = constraint_start.satisfying_angle_vector(av_init=av_current, collision_checker=self.sscc)
+            if is_large_enough_ns(av_start):
+                break
+        while True:
+            av_end = constraint_end.satisfying_angle_vector(av_init=av_current, collision_checker=self.sscc)
+            if is_large_enough_ns(av_end):
+                break
         w = (av_end - av_start)/(self.n_wp - 1)
         av_seq_list = np.array([av_start + w * i for i in range(self.n_wp)])
         return av_seq_list
@@ -465,6 +479,8 @@ if __name__=='__main__':
     if do_prepare:
         task1, task2, task3 = generate_solution_cache()
         vis = Visualizer()
+        for task in [task1, task2, task3]:
+            vis.show_task(task)
     else:
         vis = Visualizer()
         np.random.seed(3)
