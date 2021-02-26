@@ -310,6 +310,7 @@ class OpeningTask(PoseDependentTask):
 class ReachingTask(PoseDependentTask):
     def __init__(self, robot_model, n_wp):
         super(ReachingTask, self).__init__(robot_model, n_wp, True)
+        self.position = None
 
     def fridge_door_angle(self, idx):
         return self.angle_open
@@ -326,17 +327,32 @@ class ReachingTask(PoseDependentTask):
         constraint_start = self.cm.constraint_table[0]
         constraint_end = self.cm.constraint_table[self.n_wp-1]
 
-        while True:
-            av_start = constraint_start.satisfying_angle_vector(av_init=av_current, collision_checker=self.sscc)
-            if is_large_enough_ns(av_start):
-                break
-        while True:
-            av_end = constraint_end.satisfying_angle_vector(av_init=av_current, collision_checker=self.sscc)
-            if is_large_enough_ns(av_end):
-                break
+        av_start = constraint_start.satisfying_angle_vector(av_init=av_current, collision_checker=self.sscc)
+        av_end = constraint_end.satisfying_angle_vector(av_init=av_current, collision_checker=self.sscc)
         w = (av_end - av_start)/(self.n_wp - 1)
         av_seq_list = np.array([av_start + w * i for i in range(self.n_wp)])
         return av_seq_list
+
+    def attractor(self, av):
+        co_fridge_inside = self.fridge.copy_worldcoords()
+        rot = co_fridge_inside.worldrot()
+        ypr = rpy_angle(rot)[0] # skrobot's rpy is ypr
+        rpy = [ypr[2], ypr[1], ypr[0]]
+
+        frame_name_list = ["l_gripper_tool_frame"]
+        target_pose_list = [np.hstack([self.position, rpy])]
+        av_new = tinyfk_sqp_inverse_kinematics(
+                frame_name_list, 
+                target_pose_list, 
+                av, 
+                self.joint_list,
+                self.robot_model.fksolver,
+                strategy="simple",
+                maxiter=10,
+                constraint_radius=5e-1,
+                collision_checker=self.sscc,
+                with_base=True)
+        return av_new
 
     def _setup(self, **kwargs):
         sdf_open = self.fridge.gen_sdf(self.angle_open)
@@ -344,6 +360,7 @@ class ReachingTask(PoseDependentTask):
 
         assert "position" in kwargs
         position = kwargs["position"]
+        self.position = position
 
         r_gripper_pose = self.fridge.grasping_gripper_pose(self.angle_open)
 
@@ -403,7 +420,9 @@ class Visualizer(object):
         self.viewer.show()
         self.is_shown = True
 
-    def update(self, av, door_angle):
+    def update(self, av, door_angle=None):
+        if door_angle is None:
+            door_angle = self.fridge.get_angle()
         set_robot_config(self.robot_model, self.joint_list, av, with_base=True)
         self.fridge.set_angle(door_angle)
         self.viewer.redraw()
@@ -429,7 +448,7 @@ class Visualizer(object):
         cv.delete()
 
 def generate_solution_cache():
-    np.random.seed(33)
+    np.random.seed(30)
 
     robot_model = pr2_init()
     joint_list = rarm_joint_list(robot_model)
@@ -443,26 +462,32 @@ def generate_solution_cache():
     task3.setup(use_cache=False, position=None)
 
     N = 2000
+    """
     X3_start = task3.sample_from_constraint_manifold(k_wp=0, n_sample=N, eps=0.1)
     X3_end = task3.sample_from_constraint_manifold(k_wp=task3.n_wp-1, n_sample=N, eps=0.1)
+    """
     while True:
+        """
         x3_start = X3_start[np.random.randint(X3_start.shape[0])]
         x3_end = X3_end[np.random.randint(X3_end.shape[0])]
         w = (x3_end - x3_start)/(n_wp - 1)
         av_seq_init = np.array([x3_start + w * i for i in range(n_wp)])
         task3.av_seq_cache = av_seq_init
         task3.fridge_pose_cache = task3.fridge.copy_worldcoords()
+        """
 
         task3.setup(use_cache=False, position=None)
         av_seq_sol3 = task3.solve(use_cache=False)
         if av_seq_sol3 is not None:
             if task3.check_trajectory():
+                print("task3 solved")
                 task2 = OpeningTask(robot_model, 10)
                 task2.reset_fridge_pose(*fridge_pose)
                 task2.setup(use_cache=False)
                 task2.cm.add_eq_configuration(task2.n_wp-1, av_seq_sol3[0], force=True)
                 av_seq_sol2 = task2.solve(use_cache=False)
                 if av_seq_sol2 is not None:
+                    print("task2 solved")
                     task1 = ApproachingTask(robot_model, 10)
                     task1.reset_fridge_pose(*fridge_pose)
                     task1.setup(av_start=av_start, av_final=av_seq_sol2[0], use_cache=False)
@@ -498,11 +523,23 @@ if __name__=='__main__':
         task3.reset_fridge_pose_from_handle_pose(trans, rpy)
         #task3.reset_fridge_pose(*fridge_pose)
         #pos = [1.2282455237447933, -0.33, 1.2071411401543952]
-        pos = [1.2782455237447933, -0.08, 1.2071411401543952]
-        #pos = [1.2282455237447933, -0.04, 1.2071411401543952]
+        pos = [1.382455237447933, -0.1, 1.2071411401543952]
         task3.setup(position=pos)
-        task3.solve()
+        #task3.solve()
+        av_attractor_seq = []
+        av_attractor = task3.av_seq_cache[-6]
+        for i in range(10):
+            av_attractor = task3.attractor(av_attractor)
+            av_attractor_seq.append(av_attractor)
 
+        vis.show_task(task3)
+        time.sleep(2)
+        print("start attractor sequence")
+        for av in av_attractor_seq:
+            vis.update(av)
+            time.sleep(0.6)
+
+        """
         task2 = OpeningTask(robot_model, 10)
         task2.load_sol_cache()
         task2.reset_fridge_pose_from_handle_pose(trans, rpy)
@@ -518,4 +555,4 @@ if __name__=='__main__':
 
         for task in [task1, task2, task3]:
             vis.show_task(task)
-
+        """
