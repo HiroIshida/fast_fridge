@@ -38,6 +38,9 @@ class Fridge(skrobot.model.RobotModel):
         tf_base2fridge = self.copy_worldcoords()
         self.tf_fridge2handle = tf_base2fridge.inverse_transformation().transform(tf_base2handle)
 
+    def get_angle(self):
+        return self.door_joint.joint_angle()
+
     def set_angle(self, angle):
         self.door_joint.joint_angle(angle)
 
