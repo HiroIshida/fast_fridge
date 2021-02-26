@@ -348,8 +348,8 @@ class ReachingTask(PoseDependentTask):
                 self.joint_list,
                 self.robot_model.fksolver,
                 strategy="simple",
-                maxiter=10,
-                constraint_radius=5e-1,
+                maxiter=20,
+                constraint_radius=5e-2,
                 collision_checker=self.sscc,
                 with_base=True)
         return av_new
@@ -523,12 +523,12 @@ if __name__=='__main__':
         task3.reset_fridge_pose_from_handle_pose(trans, rpy)
         #task3.reset_fridge_pose(*fridge_pose)
         #pos = [1.2282455237447933, -0.33, 1.2071411401543952]
-        pos = [1.382455237447933, -0.1, 1.2071411401543952]
+        pos = [1.282455237447933, -0.35, 1.4071411401543952]
         task3.setup(position=pos)
         #task3.solve()
         av_attractor_seq = []
         av_attractor = task3.av_seq_cache[-6]
-        for i in range(10):
+        for i in range(50):
             av_attractor = task3.attractor(av_attractor)
             av_attractor_seq.append(av_attractor)
 
@@ -537,7 +537,7 @@ if __name__=='__main__':
         print("start attractor sequence")
         for av in av_attractor_seq:
             vis.update(av)
-            time.sleep(0.6)
+            time.sleep(0.1)
 
         """
         task2 = OpeningTask(robot_model, 10)
