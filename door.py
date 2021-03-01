@@ -40,8 +40,23 @@ class Fridge(skrobot.model.RobotModel):
         self.tf_fridge2handle = tf_base2fridge.inverse_transformation().transform(tf_base2handle)
 
         self.inside_region_box = Box(extents=[0.5, 0.5, 0.5], face_colors=[255, 0, 0, 100], with_sdf=True)
-        self.inside_region_box.translate([0.0, 0.0, 1.2])
+        self.inside_region_box.translate([0.0, 0.0, 1.25])
         self.assoc(self.inside_region_box, relative_coords=self.inside_region_box)
+
+    def is_inside(self, pts):
+        sd_boxes = self.inside_region_box.sdf(pts)
+        sd_fridge = self.sdf(pts)
+        return np.logical_and(sd_boxes < 0.0, sd_fridge > 0.0)
+
+    def sample_from_inside(self, N):
+        extents = np.array(self.inside_region_box._extents)
+        center = self.inside_region_box.worldpos()
+        pts = np.random.rand(10 * N, 3) * extents[np.newaxis, :] + (center - extents * 0.5)[np.newaxis, :]
+
+        logicals = self.is_inside(pts)
+        pts_filtered = pts[logicals, :]
+        return pts_filtered[1:N, :]
+
 
     def get_angle(self):
         return self.door_joint.joint_angle()
@@ -110,8 +125,12 @@ if __name__=='__main__':
     viewer.add(fridge)
     viewer.add(fridge.inside_region_box)
     viewer.show()
+    fridge.set_angle(1.2)
 
-    for i in range(20):
-        time.sleep(0.5)
-        fridge.set_angle(i * 0.1)
-        viewer.redraw()
+    pts = fridge.sample_from_inside(3000)
+    from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
+    import matplotlib.pyplot as plt
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.scatter(pts[:, 0], pts[:, 1], pts[:, 2])
+    plt.show()
