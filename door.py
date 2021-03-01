@@ -1,6 +1,7 @@
 import numpy as np
 
 import skrobot
+from skrobot.model import Box
 from skrobot.model import Axis
 from skrobot.sdf import UnionSDF
 from skrobot.coordinates import rpy_angle
@@ -37,6 +38,10 @@ class Fridge(skrobot.model.RobotModel):
         tf_base2handle = self.handle_link.copy_worldcoords()
         tf_base2fridge = self.copy_worldcoords()
         self.tf_fridge2handle = tf_base2fridge.inverse_transformation().transform(tf_base2handle)
+
+        self.inside_region_box = Box(extents=[0.5, 0.5, 0.5], face_colors=[255, 0, 0, 100], with_sdf=True)
+        self.inside_region_box.translate([0.0, 0.0, 1.2])
+        self.assoc(self.inside_region_box, relative_coords=self.inside_region_box)
 
     def get_angle(self):
         return self.door_joint.joint_angle()
@@ -100,9 +105,10 @@ class Fridge(skrobot.model.RobotModel):
 
 if __name__=='__main__':
     import time 
-    fridge = Fridge()
+    fridge = Fridge(True)
     viewer = skrobot.viewers.TrimeshSceneViewer(resolution=(641, 480))
     viewer.add(fridge)
+    viewer.add(fridge.inside_region_box)
     viewer.show()
 
     for i in range(20):
