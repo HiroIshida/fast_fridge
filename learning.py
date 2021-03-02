@@ -13,6 +13,8 @@ from regexp import ExpansionAlgorithm
 from regexp import RBF
 from regexp import GridExpansionAlgorithm
 
+np.random.seed(1)
+
 #vis = Visualizer()
 #np.random.seed(3)
 
@@ -26,7 +28,7 @@ task3 = ReachingTask(robot_model, 12)
 task3.load_sol_cache()
 task3.reset_fridge_pose_from_handle_pose(trans, rpy)
 pos_typical = task3.fridge.typical_object_position()
-grid = task3.fridge.get_grid(N_grid=8)
+grid = task3.fridge.get_grid(N_grid=4)
 n_points = grid.N_grid**3
 
 logicals_filled = np.zeros(n_points, dtype=bool)
@@ -55,7 +57,7 @@ def generate_trajectory(pos_nominal):
         logicals_invalid[idx_closest] = True
         return
 
-    gea = GridExpansionAlgorithm(grid, pos_typical)
+    gea = GridExpansionAlgorithm(grid, pos_nominal)
 
     def predicate(pos):
         is_inside = task3.fridge.is_inside(np.atleast_2d(pos))[0]
@@ -72,7 +74,6 @@ def generate_trajectory(pos_nominal):
     logicals_positive[gea.idxes_positive] = True
 
 while True:
-    print(logicals_positive)
     pt = pick_point()
     generate_trajectory(pt)
     if np.all(logicals_filled):
