@@ -63,13 +63,12 @@ class Fridge(skrobot.model.RobotModel):
         pts_filtered = pts[logicals, :]
         return pts_filtered[1:N, :]
 
-    def grid_sample_from_inside(self):
+    def grid_sample_from_inside(self, N=20):
         extents = np.array(self.inside_region_box._extents)
         center = self.inside_region_box.worldpos()
         b_min = center - 0.5 * extents
         b_max = center + 0.5 * extents
 
-        N = 20
         xlin, ylin, zlin = [np.linspace(b_min[i], b_max[i], N) for i in range(3)]
         Xmesh, Ymesh, Zmesh = np.meshgrid(xlin, ylin, zlin)
         pts = np.array([[x, y, z] for (x, y, z) in zip(Xmesh.flatten(), Ymesh.flatten(), Zmesh.flatten())])

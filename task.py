@@ -375,7 +375,7 @@ class ReachingTask(PoseDependentTask):
 
         av_seq_init_partial = self.av_seq_cache[-n_wp_replan_dummy:, :]
 
-        slsqp_option = {'ftol': self.ftol * 0.01, 'disp': True, 'maxiter': 100}
+        slsqp_option = {'ftol': self.ftol * 0.01, 'disp': True, 'maxiter': 50}
         callback = None
         res = tinyfk_sqp_plan_trajectory(
             self.sscc, self.cm_replan, av_seq_init_partial, self.joint_list, n_wp_replan_dummy,
