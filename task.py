@@ -138,9 +138,14 @@ class PoseDependentTask(object):
             rotmat = None
         else:
             rotmat = rpy_matrix(rpy[2], rpy[1], rpy[0]) # actually ypr
+
         tf_base2handle = make_coords(pos=trans, rot=rotmat)
         tf_handle2fridge = self.fridge.tf_fridge2handle.inverse_transformation()
         tf_base2fridge = tf_base2handle.transform(tf_handle2fridge)
+
+        # force reset z position to be 0.0
+        pos = tf_base2fridge.worldpos()
+        pos[2] = 0.0
         self.fridge.newcoords(tf_base2fridge)
         self.fridge.reset_angle()
 
@@ -580,7 +585,7 @@ if __name__=='__main__':
         task3.reset_fridge_pose_from_handle_pose(trans, rpy)
         #task3.reset_fridge_pose(*fridge_pose)
         pos = task3.fridge.typical_object_position()
-        task3.setup(position=pos + np.array([0.08, 0, 0.1]))
+        task3.setup(position=pos)
 
         opt_res = task3.replanning(ignore_collision=False, bench_type="detail")
         print(opt_res)
