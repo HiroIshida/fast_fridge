@@ -26,24 +26,59 @@ task3 = ReachingTask(robot_model, 12)
 task3.load_sol_cache()
 task3.reset_fridge_pose_from_handle_pose(trans, rpy)
 pos_typical = task3.fridge.typical_object_position()
-
 grid = task3.fridge.get_grid(N_grid=8)
-gea = GridExpansionAlgorithm(grid, pos_typical)
+n_points = grid.N_grid**3
 
-def predicate(pos):
-    is_inside = task3.fridge.is_inside(np.atleast_2d(pos))[0]
-    if not is_inside:
-        return False
+logicals_filled = np.zeros(n_points, dtype=bool)
+logicals_invalid = np.zeros(n_points, dtype=bool)
+logicals_positive = np.zeros(n_points, dtype=bool)
 
-    task3.setup(position=pos)
-    result = task3.replanning(ignore_collision=False, bench_type="normal")
-    if result is None:
-        return False
-    return result.nfev < 30
-gea.run(predicate, verbose=True)
-gea.show3d()
-plt.show()
+def pick_point():
+    idxes_negative = np.where(~logicals_filled)[0]
+    i = np.random.randint(len(idxes_negative))
+    idx = idxes_negative[i]
+    return grid.pts[idx]
 
+def generate_trajectory(pos_nominal):
+    task3.setup(position=pos_nominal)
+
+    dists = np.sum((grid.pts - np.atleast_2d(pos_nominal))**2, axis=1)
+    idx_closest = np.argmin(dists)
+    try:
+        av_seq_sol = task3.solve()
+    except:
+        logicals_filled[idx_closest] = True
+        logicals_invalid[idx_closest] = True
+        return
+    if av_seq_sol is None:
+        logicals_filled[idx_closest] = True
+        logicals_invalid[idx_closest] = True
+        return
+
+    gea = GridExpansionAlgorithm(grid, pos_typical)
+
+    def predicate(pos):
+        is_inside = task3.fridge.is_inside(np.atleast_2d(pos))[0]
+        if not is_inside:
+            return False
+
+        task3.setup(position=pos)
+        result = task3.replanning(ignore_collision=False, bench_type="normal")
+        if result is None:
+            return False
+        return result.nfev < 30
+    gea.run(predicate, verbose=True)
+    logicals_filled[gea.idxes_positive] = True
+    logicals_positive[gea.idxes_positive] = True
+
+while True:
+    print(logicals_positive)
+    pt = pick_point()
+    generate_trajectory(pt)
+    if np.all(logicals_filled):
+        break
+
+"""
 def find_region_using_gp():
     x_init = pos_typical
     kernel = RBF(0.1)
@@ -88,3 +123,4 @@ def construct_grid_data():
     scat3d(pts[logidx_valid, :], "blue")
     scat3d(pts[~logidx_valid, :], "red")
     plt.show()
+"""

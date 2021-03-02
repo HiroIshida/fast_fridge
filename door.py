@@ -82,7 +82,7 @@ class Fridge(skrobot.model.RobotModel):
         center = self.inside_region_box.worldpos()
         b_min = center - 0.5 * extents
         b_max = center + 0.5 * extents
-        predicate = lambda x: self.sdf(np.atleast_2d(x))[0] > 0
+        predicate = lambda x: self.sdf(np.atleast_2d(x))[0] > 3e-2
         grid = GridGraph(b_min, b_max, N_grid, predicate)
         return grid
 
