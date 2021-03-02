@@ -36,8 +36,6 @@ from control_msgs.msg import FollowJointTrajectoryActionFeedback
 
 def bench(func):
     def wrapper(*args, **kwargs):
-        print(args)
-        print(kwargs)
         use_bench = ("bench_type" in kwargs)
 
         if use_bench:
