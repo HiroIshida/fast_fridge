@@ -75,7 +75,7 @@ class PoseDependentTask(object):
         self.fridge_pose_cache = None
 
     @bench
-    def solve(self, use_cache=True, callback=None):
+    def solve(self, use_cache=True, callback=None, ignore_collision=False):
         assert self.is_setup, "plase setup the task before solving"
         self.is_setup = False
 
@@ -90,7 +90,7 @@ class PoseDependentTask(object):
         res = tinyfk_sqp_plan_trajectory(
             self.sscc, self.cm, av_seq_init, self.joint_list, self.n_wp,
             safety_margin=2e-2, with_base=True, slsqp_option=slsqp_option,
-            callback=callback)
+            callback=callback, ignore_collision=ignore_collision)
 
         SUCCESS = 0
         print("status: {0}".format(res.status))
@@ -308,9 +308,18 @@ class OpeningTask(PoseDependentTask):
         self.sscc.set_sdf(sdf_list)
 
 class ReachingTask(PoseDependentTask):
-    def __init__(self, robot_model, n_wp):
+    def __init__(self, robot_model, n_wp, n_wp_replan=None):
         super(ReachingTask, self).__init__(robot_model, n_wp, True)
-        self.position = None
+        self.l_gripper_pose = None
+
+        if n_wp_replan is None:
+            n_wp_replan = int(n_wp / 3.0)
+        self.n_wp_replan  = n_wp_replan
+        n_wp_replan_dummy = n_wp_replan + 1
+        self.cm_replan = ConstraintManager(
+                n_wp_replan_dummy, self.joint_list,
+                self.robot_model.fksolver,
+                with_base=True)
 
     def fridge_door_angle(self, idx):
         return self.angle_open
@@ -333,6 +342,37 @@ class ReachingTask(PoseDependentTask):
         av_seq_list = np.array([av_start + w * i for i in range(self.n_wp)])
         return av_seq_list
 
+    def replanning(self, ignore_collision=False):
+        assert self.is_setup, "plase setup the task before solving"
+        self.is_setup = False
+
+        n_wp_replan_dummy = (self.n_wp_replan + 1)
+        av_dummy = self.av_seq_cache[-n_wp_replan_dummy]
+        av_start = self.av_seq_cache[-self.n_wp_replan]
+        self.cm_replan.add_eq_configuration(0, av_dummy, force=True)
+        self.cm_replan.add_eq_configuration(1, av_start, force=True)
+        self.cm_replan.add_pose_constraint(n_wp_replan_dummy - 1, "l_gripper_tool_frame", self.l_gripper_pose, force=True)
+
+        av_seq_init_partial = self.av_seq_cache[-n_wp_replan_dummy:, :]
+
+        slsqp_option = {'ftol': self.ftol, 'disp': True, 'maxiter': 100}
+        callback = None
+        res = tinyfk_sqp_plan_trajectory(
+            self.sscc, self.cm_replan, av_seq_init_partial, self.joint_list, n_wp_replan_dummy,
+            safety_margin=2e-2, with_base=True, slsqp_option=slsqp_option,
+            callback=callback, ignore_collision=ignore_collision)
+
+        SUCCESS = 0
+        print("status: {0}".format(res.status))
+        if res.status in [SUCCESS]:
+            av_seq_partial_solved = res.x
+            self.av_seq_cache = np.vstack((self.av_seq_cache[:-n_wp_replan_dummy], av_seq_partial_solved))
+            self.fridge_pose_cache = self.fridge.copy_worldcoords()
+            print("trajectory optimization completed")
+            return self.av_seq_cache
+        else:
+            return None
+
     def attractor(self, av):
         co_fridge_inside = self.fridge.copy_worldcoords()
         rot = co_fridge_inside.worldrot()
@@ -340,7 +380,7 @@ class ReachingTask(PoseDependentTask):
         rpy = [ypr[2], ypr[1], ypr[0]]
 
         frame_name_list = ["l_gripper_tool_frame"]
-        target_pose_list = [np.hstack([self.position, rpy])]
+        target_pose_list = [self.l_gripper_pose]
         av_new = tinyfk_sqp_inverse_kinematics(
                 frame_name_list, 
                 target_pose_list, 
@@ -360,7 +400,6 @@ class ReachingTask(PoseDependentTask):
 
         assert "position" in kwargs
         position = kwargs["position"]
-        self.position = position
 
         r_gripper_pose = self.fridge.grasping_gripper_pose(self.angle_open)
 
@@ -400,6 +439,8 @@ class ReachingTask(PoseDependentTask):
         # final pose
         l_gripper_pose = np.hstack([position, rpy])
         self.cm.add_pose_constraint(self.n_wp-1, "l_gripper_tool_frame", l_gripper_pose, force=True)
+
+        self.l_gripper_pose = l_gripper_pose
 
 
 class Visualizer(object):
@@ -442,7 +483,7 @@ class Visualizer(object):
                 av = av_seq_cache[idx]
                 door_angle = problem.fridge_door_angle(idx)
                 self.update(av, door_angle)
-                time.sleep(0.5)
+                time.sleep(0.3)
         else:
             av = av_seq_cache[idx]
             door_angle = problem.fridge_door_angle(idx)
@@ -509,7 +550,6 @@ if __name__=='__main__':
         for task in [task1, task2, task3]:
             vis.show_task(task)
     else:
-        vis = Visualizer()
         #np.random.seed(3)
 
         robot_model = pr2_init()
@@ -524,10 +564,16 @@ if __name__=='__main__':
         task3.load_sol_cache()
         task3.reset_fridge_pose_from_handle_pose(trans, rpy)
         #task3.reset_fridge_pose(*fridge_pose)
-        pos = [1.182455237447933, -0.2, 1.2071411401543952]
-        #pos = [1.202455237447933, -0.36, 1.2071411401543952]
+        #pos = [1.182455237447933, -0.2, 1.2071411401543952]
+        pos = [1.202455237447933, -0.36, 1.2071411401543952]
         task3.setup(position=pos)
-        #task3.solve()
+
+        profiler = Profiler()
+        profiler.start()
+        task3.replanning(ignore_collision=False)
+        profiler.stop()
+        print(profiler.output_text(unicode=True, color=True, show_all=True))
+        task3.check_trajectory()
 
         task2 = OpeningTask(robot_model, 10)
         task2.load_sol_cache()
@@ -535,9 +581,6 @@ if __name__=='__main__':
         #task2.reset_fridge_pose(*fridge_pose)
         task2.setup()
 
-        for av in task2.av_seq_cache:
-            set_robot_config(robot_model, joint_list, av, True)
-            print(robot_model.r_wrist_roll_joint.joint_angle())
-
+        vis = Visualizer()
         vis.show_task(task2)
-
+        vis.show_task(task3)
