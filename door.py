@@ -48,6 +48,12 @@ class Fridge(skrobot.model.RobotModel):
         sd_fridge = self.sdf(pts)
         return np.logical_and(sd_boxes < 0.0, sd_fridge > 0.0)
 
+    def typical_object_position(self):
+        co_fridge_inside = self.copy_worldcoords()
+        co_fridge_inside.translate([0.1, 0.0, 1.2])
+        position = co_fridge_inside.worldpos()
+        return position
+
     def sample_from_inside(self, N):
         extents = np.array(self.inside_region_box._extents)
         center = self.inside_region_box.worldpos()

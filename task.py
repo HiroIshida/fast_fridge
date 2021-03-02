@@ -370,7 +370,7 @@ class ReachingTask(PoseDependentTask):
 
         av_seq_init_partial = self.av_seq_cache[-n_wp_replan_dummy:, :]
 
-        slsqp_option = {'ftol': self.ftol, 'disp': True, 'maxiter': 100}
+        slsqp_option = {'ftol': self.ftol * 0.01, 'disp': True, 'maxiter': 100}
         callback = None
         res = tinyfk_sqp_plan_trajectory(
             self.sscc, self.cm_replan, av_seq_init_partial, self.joint_list, n_wp_replan_dummy,
@@ -421,8 +421,8 @@ class ReachingTask(PoseDependentTask):
         co_fridge_inside = self.fridge.copy_worldcoords()
 
         if position is None:
-            co_fridge_inside.translate([0.1, 0.0, 1.2])
-            position = co_fridge_inside.worldpos()
+            position = self.fridge.typical_object_position()
+            
         rot = co_fridge_inside.worldrot()
         ypr = rpy_angle(rot)[0] # skrobot's rpy is ypr
         rpy = [ypr[2], ypr[1], ypr[0]]
@@ -506,7 +506,7 @@ class Visualizer(object):
         cv.delete()
 
 def generate_solution_cache():
-    #np.random.seed(30)
+    np.random.seed(30)
 
     robot_model = pr2_init()
     joint_list = rarm_joint_list(robot_model)
@@ -514,7 +514,7 @@ def generate_solution_cache():
 
     fridge_pose = [[2.0, 1.5, 0.0], [0, 0, 0]]
 
-    n_wp = 10
+    n_wp = 12
     task3 = ReachingTask(robot_model, n_wp)
     task3.reset_fridge_pose(*fridge_pose)
     task3.setup(use_cache=False, position=None)
@@ -575,15 +575,15 @@ if __name__=='__main__':
         #trans = [0.9169080151251682, 0.1125324577251463, 1.06083550540037]
         rpy = [0.0, 0.0, -0.3151299552985494]
 
-        task3 = ReachingTask(robot_model, 10)
+        task3 = ReachingTask(robot_model, 12)
         task3.load_sol_cache()
         task3.reset_fridge_pose_from_handle_pose(trans, rpy)
         #task3.reset_fridge_pose(*fridge_pose)
-        #pos = [1.182455237447933, -0.2, 1.2071411401543952]
-        pos = [1.202455237447933, -0.36, 1.2071411401543952]
-        task3.setup(position=pos)
+        pos = task3.fridge.typical_object_position()
+        task3.setup(position=pos + np.array([0.08, 0, 0.1]))
 
-        task3.replanning(ignore_collision=False, bench_type="detail")
+        opt_res = task3.replanning(ignore_collision=False, bench_type="detail")
+        print(opt_res)
         task3.check_trajectory()
 
         task2 = OpeningTask(robot_model, 10)
@@ -591,7 +591,6 @@ if __name__=='__main__':
         task2.reset_fridge_pose_from_handle_pose(trans, rpy)
         #task2.reset_fridge_pose(*fridge_pose)
         task2.setup()
-
         vis = Visualizer()
         vis.show_task(task2)
         vis.show_task(task3)
