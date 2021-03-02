@@ -6,6 +6,8 @@ from skrobot.model import Axis
 from skrobot.sdf import UnionSDF
 from skrobot.coordinates import rpy_angle
 
+from regexp import GridGraph
+
 def door_open_angle_seq(n_wp, k_start, k_end, angle_open):
     n_step = k_end - k_start + 1
     angles_whole = []
@@ -75,6 +77,15 @@ class Fridge(skrobot.model.RobotModel):
         pts_filtered = pts[self.is_inside(pts), :]
         return pts_filtered
 
+    def get_grid(self, N_grid=20):
+        extents = np.array(self.inside_region_box._extents)
+        center = self.inside_region_box.worldpos()
+        b_min = center - 0.5 * extents
+        b_max = center + 0.5 * extents
+        predicate = lambda x: self.sdf(np.atleast_2d(x))[0] > 0
+        grid = GridGraph(b_min, b_max, N_grid, predicate)
+        return grid
+
     def get_angle(self):
         return self.door_joint.joint_angle()
 
@@ -143,6 +154,7 @@ if __name__=='__main__':
     viewer.add(fridge.inside_region_box)
     viewer.show()
     fridge.set_angle(1.2)
+    grid = fridge.get_grid()
 
     pts = fridge.grid_sample_from_inside()
     from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
