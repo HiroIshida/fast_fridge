@@ -9,6 +9,9 @@ from task import ReachingTask
 from task import OpeningTask
 from task import Visualizer
 
+from regexp import ExpansionAlgorithm
+from regexp import RBF
+
 vis = Visualizer()
 #np.random.seed(3)
 
@@ -23,27 +26,29 @@ task3.load_sol_cache()
 task3.reset_fridge_pose_from_handle_pose(trans, rpy)
 pos_typical = task3.fridge.typical_object_position()
 
-pts = task3.fridge.grid_sample_from_inside(N=8)
-results = []
-for i in range(len(pts)):
-    pos = pts[i]
-    task3.setup(position=pos)
-    opt_res = task3.replanning(ignore_collision=False, bench_type="normal")
-    results.append(opt_res)
 
-with open("tmp.dill", "wb") as f:
-    data = {"pts": pts, "results" :results}
-    dill.dump(data, f)
+def construct_grid_data():
+    pts = task3.fridge.grid_sample_from_inside(N=8)
+    results = []
+    for i in range(len(pts)):
+        pos = pts[i]
+        task3.setup(position=pos)
+        opt_res = task3.replanning(ignore_collision=False, bench_type="normal")
+        results.append(opt_res)
 
-def is_properly_solved(result):
-    if result is None:
-        return False
-    return result.nfev < 20
-logidx_valid = np.array([is_properly_solved(res) for res in results])
+    with open("tmp.dill", "wb") as f:
+        data = {"pts": pts, "results" :results}
+        dill.dump(data, f)
 
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-scat3d = lambda X, c:  ax.scatter(X[:, 0], X[:, 1], X[:, 2], c=c)
-scat3d(pts[logidx_valid, :], "blue")
-scat3d(pts[~logidx_valid, :], "red")
-plt.show()
+    def is_properly_solved(result):
+        if result is None:
+            return False
+        return result.nfev < 20
+    logidx_valid = np.array([is_properly_solved(res) for res in results])
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    scat3d = lambda X, c:  ax.scatter(X[:, 0], X[:, 1], X[:, 2], c=c)
+    scat3d(pts[logidx_valid, :], "blue")
+    scat3d(pts[~logidx_valid, :], "red")
+    plt.show()
