@@ -36,12 +36,28 @@ from control_msgs.msg import FollowJointTrajectoryActionFeedback
 
 def bench(func):
     def wrapper(*args, **kwargs):
-        ts = time.time()
-        ret = func(*args, **kwargs)
-        print("elapsed time : {0}".format(time.time() - ts))
-        return ret
-    return wrapper
+        print(args)
+        print(kwargs)
+        use_bench = ("bench_type" in kwargs)
 
+        if use_bench:
+            if kwargs["bench_type"]=="detail":
+                profiler = Profiler()
+                profiler.start()
+            else:
+                ts = time.time()
+
+        ret = func(*args, **kwargs)
+
+        if use_bench:
+            if kwargs["bench_type"]=="detail":
+                profiler.stop()
+                print(profiler.output_text(unicode=True, color=True, show_all=True))
+            else:
+                print("elapsed time : {0}".format(time.time() - ts))
+        return ret
+
+    return wrapper
 
 class PoseDependentTask(object):
     def __init__(self, robot_model, n_wp, full_demo=True):
@@ -342,7 +358,8 @@ class ReachingTask(PoseDependentTask):
         av_seq_list = np.array([av_start + w * i for i in range(self.n_wp)])
         return av_seq_list
 
-    def replanning(self, ignore_collision=False):
+    @bench
+    def replanning(self, ignore_collision=False, **kwargs):
         assert self.is_setup, "plase setup the task before solving"
         self.is_setup = False
 
@@ -369,7 +386,7 @@ class ReachingTask(PoseDependentTask):
             self.av_seq_cache = np.vstack((self.av_seq_cache[:-n_wp_replan_dummy], av_seq_partial_solved))
             self.fridge_pose_cache = self.fridge.copy_worldcoords()
             print("trajectory optimization completed")
-            return self.av_seq_cache
+            return res
         else:
             return None
 
@@ -568,11 +585,7 @@ if __name__=='__main__':
         pos = [1.202455237447933, -0.36, 1.2071411401543952]
         task3.setup(position=pos)
 
-        profiler = Profiler()
-        profiler.start()
-        task3.replanning(ignore_collision=False)
-        profiler.stop()
-        print(profiler.output_text(unicode=True, color=True, show_all=True))
+        task3.replanning(ignore_collision=False, bench_type="detail")
         task3.check_trajectory()
 
         task2 = OpeningTask(robot_model, 10)
