@@ -12,7 +12,7 @@ from task import Visualizer
 from regexp import ExpansionAlgorithm
 from regexp import RBF
 
-vis = Visualizer()
+#vis = Visualizer()
 #np.random.seed(3)
 
 robot_model = pr2_init()
@@ -26,6 +26,23 @@ task3.load_sol_cache()
 task3.reset_fridge_pose_from_handle_pose(trans, rpy)
 pos_typical = task3.fridge.typical_object_position()
 
+x_init = pos_typical
+kernel = RBF(0.1)
+ea = ExpansionAlgorithm(x_init, kernel=kernel, noise=0.1)
+
+def predicate(pos):
+    is_inside = task3.fridge.is_inside(np.atleast_2d(pos))[0]
+    if not is_inside:
+        return False
+
+    task3.setup(position=pos)
+    result = task3.replanning(ignore_collision=False, bench_type="normal")
+    if result is None:
+        return False
+    return result.nfev < 30
+ea.run(predicate, verbose=True)
+ea.plot3d()
+plt.show()
 
 def construct_grid_data():
     pts = task3.fridge.grid_sample_from_inside(N=8)
