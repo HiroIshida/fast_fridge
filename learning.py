@@ -74,7 +74,7 @@ class TrajetorySampler(object):
         pos_init = self.task.fridge.typical_object_position()
         gea = self.rpa.update(pos_init, predicate_generator=self.predicate_generator)
 
-        pts_feasible = self.grid.pts[gea.idxes_positive]
+        pts_feasible = self.grid.pts[gea.idxes_positive] - np.atleast_2d(self.task.fridge.worldpos())
         traj = RegionEquippedTrajectory(self.nominal_trajectory_cache, pts_feasible)
         self.traj_list.append(traj)
 
@@ -91,7 +91,7 @@ class TrajetorySampler(object):
             gea = self.rpa.update(pos_next, predicate_generator=self.predicate_generator)
 
             if self.nominal_trajectory_cache is not None:
-                pts_feasible = self.grid.pts[gea.idxes_positive]
+                pts_feasible = self.grid.pts[gea.idxes_positive] - np.atleast_2d(self.task.fridge.worldpos())
                 traj = RegionEquippedTrajectory(self.nominal_trajectory_cache, pts_feasible)
                 self.traj_list.append(traj)
 
