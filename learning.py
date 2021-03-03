@@ -18,6 +18,11 @@ from regexp import InvalidSearchCenterPointException
 
 np.random.seed(1)
 
+class RegionEquippedTrajectory(object):
+    def __init__(self, av_seq, feasible_set):
+        self.av_seq = av_seq
+        self.feasible_set = feasible_set
+
 class TrajetorySampler(object):
     def __init__(self, N_grid=8):
         robot_model = pr2_init()
@@ -32,16 +37,26 @@ class TrajetorySampler(object):
         grid = task.fridge.get_grid(N_grid=N_grid)
 
         self.task = task
+        self.grid = grid
         self.rpa = RegionPopulationAlgorithm(grid)
+        self.traj_list = []
+
+        # set to None before update
+        self.nominal_trajectory_cache = None
 
     def predicate_generator(self, pos_nominal):
+        self.task.load_sol_cache()
         self.task.setup(position=pos_nominal)
         try:
+            print("solving nominal trajectory...")
             av_seq_sol = self.task.solve()
+            print("solved")
         except:
             raise InvalidSearchCenterPointException
         if av_seq_sol is None:
             raise InvalidSearchCenterPointException
+
+        self.nominal_trajectory_cache = av_seq_sol
 
         def predicate(pos):
             is_inside = self.task.fridge.is_inside(np.atleast_2d(pos))[0]
@@ -57,13 +72,28 @@ class TrajetorySampler(object):
 
     def run(self):
         pos_init = self.task.fridge.typical_object_position()
-        self.rpa.update(pos_init, predicate_generator=self.predicate_generator)
+        gea = self.rpa.update(pos_init, predicate_generator=self.predicate_generator)
+
+        pts_feasible = self.grid.pts[gea.idxes_positive]
+        traj = RegionEquippedTrajectory(self.nominal_trajectory_cache, pts_feasible)
+        self.traj_list.append(traj)
 
         while True:
+            with open("traj_lib.dill", "wb") as f:
+                dill.dump(self, f)
+
+            self.nominal_trajectory_cache = None
             if self.rpa.is_terminated():
+                self.rpa.show(showtype="strange")
+                plt.show()
                 break
             pos_next = self.rpa.get_next_point()
-            self.rpa.update(pos_next, predicate_generator=self.predicate_generator)
+            gea = self.rpa.update(pos_next, predicate_generator=self.predicate_generator)
 
-ts = TrajetorySampler(N_grid=5)
+            if self.nominal_trajectory_cache is not None:
+                pts_feasible = self.grid.pts[gea.idxes_positive]
+                traj = RegionEquippedTrajectory(self.nominal_trajectory_cache, pts_feasible)
+                self.traj_list.append(traj)
+
+ts = TrajetorySampler(N_grid=10)
 ts.run()

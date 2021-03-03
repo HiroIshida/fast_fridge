@@ -100,7 +100,7 @@ class PoseDependentTask(object):
         self.av_seq_init_cache = av_seq_init
 
         self.cm.check_eqconst_validity(collision_checker=self.sscc)
-        slsqp_option = {'ftol': self.ftol, 'disp': True, 'maxiter': 100}
+        slsqp_option = {'ftol': self.ftol, 'disp': True, 'maxiter': 50}
         res = tinyfk_sqp_plan_trajectory(
             self.sscc, self.cm, av_seq_init, self.joint_list, self.n_wp,
             safety_margin=2e-2, with_base=True, slsqp_option=slsqp_option,
