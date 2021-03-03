@@ -13,7 +13,7 @@ from regexp import ExpansionAlgorithm
 from regexp import RBF
 from regexp import GridExpansionAlgorithm
 
-from regexp import RegionPopulationAlgorithm
+from regexp import RegionPopulationAlgorithm2
 from regexp import InvalidSearchCenterPointException
 
 np.random.seed(1)
@@ -38,7 +38,7 @@ class TrajetorySampler(object):
 
         self.task = task
         self.grid = grid
-        self.rpa = RegionPopulationAlgorithm(grid)
+        self.rpa = RegionPopulationAlgorithm2(grid, 0.1)
         self.traj_list = []
 
         # set to None before update
@@ -72,7 +72,7 @@ class TrajetorySampler(object):
 
     def run(self):
         pos_init = self.task.fridge.typical_object_position()
-        gea = self.rpa.update(pos_init, predicate_generator=self.predicate_generator)
+        gea, cea = self.rpa.update(pos_init, predicate_generator=self.predicate_generator)
 
         pts_feasible = self.grid.pts[gea.idxes_positive] - np.atleast_2d(self.task.fridge.worldpos())
         traj = RegionEquippedTrajectory(self.nominal_trajectory_cache, pts_feasible)
@@ -88,12 +88,12 @@ class TrajetorySampler(object):
                 plt.show()
                 break
             pos_next = self.rpa.get_next_point()
-            gea = self.rpa.update(pos_next, predicate_generator=self.predicate_generator)
+            gea, cea = self.rpa.update(pos_next, predicate_generator=self.predicate_generator)
 
             if self.nominal_trajectory_cache is not None:
                 pts_feasible = self.grid.pts[gea.idxes_positive] - np.atleast_2d(self.task.fridge.worldpos())
                 traj = RegionEquippedTrajectory(self.nominal_trajectory_cache, pts_feasible)
                 self.traj_list.append(traj)
 
-ts = TrajetorySampler(N_grid=10)
+ts = TrajetorySampler(N_grid=5)
 ts.run()
