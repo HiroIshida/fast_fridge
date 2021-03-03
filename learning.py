@@ -27,17 +27,20 @@ class TrajetorySampler(object):
         task.load_sol_cache()
         task.reset_fridge_pose_from_handle_pose(trans, rpy)
         pos_typical = task.fridge.typical_object_position()
-        grid = task.fridge.get_grid(N_grid=8)
+        grid = task.fridge.get_grid(N_grid=N_grid)
         n_points = grid.N_grid**3
 
         self.task = task
         self.grid = grid
         self.logicals_filled = np.zeros(n_points, dtype=bool)
 
+        # stores nagative indexes found in the previous execution of 
+        # compute_feasible_region
+        self._idxes_frontier = set()
+
     def pick_next_point(self):
-        idxes_negative = np.where(~self.logicals_filled)[0]
-        i = np.random.randint(len(idxes_negative))
-        idx = idxes_negative[i]
+        assert len(self._idxes_frontier) != 0
+        idx = self._idxes_frontier.pop()
         return self.grid.pts[idx]
 
     def compute_feasible_region(self, pos_nominal):
@@ -66,11 +69,31 @@ class TrajetorySampler(object):
                 return False
             return result.nfev < 30
         gea.run(predicate, verbose=True)
+
         self.logicals_filled[gea.idxes_positive] = True
 
+        # update frontire. This must come at the end of this procedure 
+        # becaues it depends on the internal state of self.logicals_filled
+        self._update_idexes_frontier(gea.idxes_negative)
+
+    def _update_idexes_frontier(self, idxes_negative):
+        idxes_frontier_union = self._idxes_frontier.union(idxes_negative)
+        # extract unfilled union
+        idxes_array = np.array(list(idxes_frontier_union))
+        idxidx = np.where(~self.logicals_filled[idxes_array])[0]
+        idxes_negative_unexplored = idxes_array[idxidx]
+        self._idxes_frontier = set(idxes_negative_unexplored)
+
     def run(self):
+        x_start = self.task.fridge.typical_object_position()
         while True:
-            pt = self.pick_next_point()
+            if len(self._idxes_frontier) == 0:
+                pt = x_start
+            else:
+                pt = self.pick_next_point()
+            print(pt)
+            print(self.logicals_filled)
+            print(sum(self.logicals_filled))
             self.compute_feasible_region(pt)
             if np.all(self.logicals_filled):
                 break
