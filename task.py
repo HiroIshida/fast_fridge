@@ -1,3 +1,4 @@
+import os
 from pyinstrument import Profiler
 import time
 import threading
@@ -339,6 +340,7 @@ class ReachingTask(PoseDependentTask):
                 n_wp_replan_dummy, self.joint_list,
                 self.robot_model.fksolver,
                 with_base=True)
+        self.traj_lib = None
 
     def fridge_door_angle(self, idx):
         return self.angle_open
@@ -393,6 +395,17 @@ class ReachingTask(PoseDependentTask):
         else:
             return None
 
+    def load_trajectory_library(self):
+        filename = "traj_lib8.dill"
+        """
+        self.traj_lib = TrajectoryLibrary.load_dill(filename)
+        with open(filename, 'rb') as f:
+            self.traj_lib = dill.load(f)
+        """
+        with open(filename, 'rb') as f:
+            self.traj_lib = dill.load(f)
+        self.fridge_pose_cache = Coordinates()
+        
     def attractor(self, av):
         co_fridge_inside = self.fridge.copy_worldcoords()
         rot = co_fridge_inside.worldrot()
@@ -462,6 +475,12 @@ class ReachingTask(PoseDependentTask):
 
         self.l_gripper_pose = l_gripper_pose
 
+        if self.traj_lib is not None:
+            print("load initial trajectory using precompted library")  
+            x = position - self.fridge.worldpos()
+            traj = self.traj_lib.find_trajectory(x)
+            print("proper trajectory is found")
+            self.av_seq_cache = traj.av_seq
 
 class Visualizer(object):
     def __init__(self):
@@ -576,20 +595,19 @@ if __name__=='__main__':
         joint_list = rarm_joint_list(robot_model)
         av_start = get_robot_config(robot_model, joint_list, with_base=True)
 
-        trans = [0.9169080151251682, 0.1125324577251463, 1.06083550540037]
-        #trans = [0.9169080151251682, 0.1125324577251463, 1.06083550540037]
-        rpy = [0.0, 0.0, -0.3151299552985494]
+        trans = [0.0, 0.0, 0.0]
+        rpy = [0.0, 0.0, 0]
 
         task3 = ReachingTask(robot_model, 12)
         task3.load_sol_cache()
-        task3.reset_fridge_pose_from_handle_pose(trans, rpy)
+        #task3.reset_fridge_pose_from_handle_pose(trans, rpy)
         #task3.reset_fridge_pose(*fridge_pose)
         pos = task3.fridge.typical_object_position()
-        task3.setup(position=pos)
+        task3.load_trajectory_library()
+        task3.setup(position=pos + np.array([0.1, 0, 0.1]))
 
-        opt_res = task3.replanning(ignore_collision=False, bench_type="detail")
-        print(opt_res)
-        task3.check_trajectory()
+        opt_res = task3.replanning(ignore_collision=False, bench_type="simple")
+        assert task3.check_trajectory()
 
         task2 = OpeningTask(robot_model, 10)
         task2.load_sol_cache()
