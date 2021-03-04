@@ -54,7 +54,7 @@ class TrajetorySampler(object):
         rpy = np.zeros(3)
         task = ReachingTask(robot_model, 12)
         task.load_sol_cache()
-        task.reset_fridge_pose_from_handle_pose(trans, rpy)
+        task.reset_fridge_pose(trans, rpy)
         grid = task.fridge.get_grid(N_grid=N_grid)
 
         self.task = task
