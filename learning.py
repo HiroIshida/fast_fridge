@@ -19,11 +19,28 @@ from regexp import InvalidSearchCenterPointException
 np.random.seed(1)
 
 class RegionEquippedTrajectory(object):
-    def __init__(self, av_seq, feasible_set):
+    def __init__(self, av_seq, feasible_set, classifier):
         self.av_seq = av_seq
         self.feasible_set = feasible_set
+        self.classifier = classifier
+
+class TrajectoryLibrary(object):
+    def __init__(self, trajectory_list, grid):
+        self.trajectory_list = trajectory_list
+
+    def find_trajectory(self, pos):
+        # pos must be relative to the fridge model
+        scores = np.array([traj.classifier.predict(np.atleast_2d(pos))[0]
+            for traj in self.trajectory_list])
+        if np.all(scores < 1e-5):
+            print("no feasible trajectory found")
+            return None
+        traj_most_feasible = self.trajectory_list[np.argmax(scores)]
+        return traj_most_feasible
 
 class TrajetorySampler(object):
+    default_cache_file_name = "traj_sampler_cache.dill"
+
     def __init__(self, N_grid=8):
         robot_model = pr2_init()
         joint_list = rarm_joint_list(robot_model)
@@ -43,6 +60,22 @@ class TrajetorySampler(object):
 
         # set to None before update
         self.nominal_trajectory_cache = None
+
+    @classmethod
+    def from_dilled_data(cls):
+        """
+        because object by just loading .dill file cannot use
+        newly added methods
+        """
+        with open(cls.default_cache_file_name, "rb") as f:
+            data = dill.load(f)
+        N_grid = data.grid.N_grid
+        obj = cls(N_grid=N_grid)
+        obj.task = data.task
+        obj.grid = data.grid
+        obj.rpa = data.rpa
+        obj.traj_list = data.traj_list
+        return obj
 
     def predicate_generator(self, pos_nominal):
         self.task.load_sol_cache()
@@ -74,12 +107,13 @@ class TrajetorySampler(object):
         pos_init = self.task.fridge.typical_object_position()
         gea, cea = self.rpa.update(pos_init, predicate_generator=self.predicate_generator)
 
+        model = cea.model
         pts_feasible = self.grid.pts[gea.idxes_positive] - np.atleast_2d(self.task.fridge.worldpos())
-        traj = RegionEquippedTrajectory(self.nominal_trajectory_cache, pts_feasible)
+        traj = RegionEquippedTrajectory(self.nominal_trajectory_cache, pts_feasible, model)
         self.traj_list.append(traj)
 
         while True:
-            with open("traj_lib.dill", "wb") as f:
+            with open(self.default_cache_file_name, "wb") as f:
                 dill.dump(self, f)
 
             self.nominal_trajectory_cache = None
@@ -92,8 +126,22 @@ class TrajetorySampler(object):
 
             if self.nominal_trajectory_cache is not None:
                 pts_feasible = self.grid.pts[gea.idxes_positive] - np.atleast_2d(self.task.fridge.worldpos())
-                traj = RegionEquippedTrajectory(self.nominal_trajectory_cache, pts_feasible)
+                model = cea.model
+                traj = RegionEquippedTrajectory(self.nominal_trajectory_cache, pts_feasible, model)
                 self.traj_list.append(traj)
 
-ts = TrajetorySampler(N_grid=5)
+    def dump_trajectory_library(self):
+        return TrajectoryLibrary(self.traj_list, self.grid)
+
+ts = TrajetorySampler(N_grid=4)
+import time
+tstart = time.time()
 ts.run()
+elapsed = time.time() - tstart
+print("elapsed time is {0}".format(elapsed))
+ts = TrajetorySampler.from_dilled_data()
+traj_lib = ts.dump_trajectory_library()
+for p in ts.grid.pts:
+    traj = traj_lib.find_trajectory(p)
+    print(traj)
+
