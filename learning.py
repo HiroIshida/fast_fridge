@@ -28,6 +28,10 @@ class TrajectoryLibrary(object):
     def __init__(self, trajectory_list, grid):
         self.trajectory_list = trajectory_list
 
+    def dump_dill(self, filename):
+        with open(filename, 'wb') as f:
+            dill.dump(self, f)
+
     def find_trajectory(self, pos):
         # pos must be relative to the fridge model
         scores = np.array([traj.classifier.predict(np.atleast_2d(pos))[0]
@@ -39,7 +43,6 @@ class TrajectoryLibrary(object):
         return traj_most_feasible
 
 class TrajetorySampler(object):
-    default_cache_file_name = "traj_sampler_cache.dill"
 
     def __init__(self, N_grid=8):
         robot_model = pr2_init()
@@ -62,12 +65,16 @@ class TrajetorySampler(object):
         self.nominal_trajectory_cache = None
 
     @classmethod
-    def from_dilled_data(cls):
+    def default_cache_file_name(cls, N_grid):
+        return "traj_sampler_cache{0}.dill".format(N_grid)
+
+    @classmethod
+    def from_dilled_data(cls, N_grid):
         """
         because object by just loading .dill file cannot use
         newly added methods
         """
-        with open(cls.default_cache_file_name, "rb") as f:
+        with open(cls.default_cache_file_name(N_grid), "rb") as f:
             data = dill.load(f)
         N_grid = data.grid.N_grid
         obj = cls(N_grid=N_grid)
@@ -113,7 +120,7 @@ class TrajetorySampler(object):
         self.traj_list.append(traj)
 
         while True:
-            with open(self.default_cache_file_name, "wb") as f:
+            with open(self.default_cache_file_name(self.grid.N_grid), "wb") as f:
                 dill.dump(self, f)
 
             self.nominal_trajectory_cache = None
@@ -133,15 +140,14 @@ class TrajetorySampler(object):
     def dump_trajectory_library(self):
         return TrajectoryLibrary(self.traj_list, self.grid)
 
-ts = TrajetorySampler(N_grid=4)
-import time
-tstart = time.time()
-ts.run()
-elapsed = time.time() - tstart
-print("elapsed time is {0}".format(elapsed))
-ts = TrajetorySampler.from_dilled_data()
-traj_lib = ts.dump_trajectory_library()
-for p in ts.grid.pts:
-    traj = traj_lib.find_trajectory(p)
-    print(traj)
+if __name__=='__main__':
+    N_grid = 4
+    ts = TrajetorySampler(N_grid=N_grid)
+    ts.run()
+    ts = TrajetorySampler.from_dilled_data(N_grid)
 
+    traj_lib = ts.dump_trajectory_library()
+    lib_file_name = "traj_lib{0}.dill".format(N_grid)
+    traj_lib.dump_dill(lib_file_name)
+    with open(lib_file_name, 'rb') as f:
+        traj_lib_loaded = dill.load(f)
