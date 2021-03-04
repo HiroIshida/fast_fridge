@@ -258,8 +258,8 @@ class PoseDependentTask(object):
             ms.extend()
         return ms.get_whole_sample()
 
-    def check_trajectory(self):
-        traj_cache_aug = gen_augumented_av_seq(self.av_seq_cache, n_mid=2)
+    def check_trajectory(self, n_mid=2):
+        traj_cache_aug = gen_augumented_av_seq(self.av_seq_cache, n_mid=n_mid)
         return self.sscc.check_trajectory(self.joint_list, traj_cache_aug, with_base=True)
 
 class ApproachingTask(PoseDependentTask):

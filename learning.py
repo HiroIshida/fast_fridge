@@ -96,6 +96,9 @@ class TrajetorySampler(object):
             raise InvalidSearchCenterPointException
         if av_seq_sol is None:
             raise InvalidSearchCenterPointException
+        if not self.task.check_trajectory(n_mid=20):
+            print("check trajectory failed")
+            raise InvalidSearchCenterPointException
 
         self.nominal_trajectory_cache = av_seq_sol
 
@@ -107,6 +110,9 @@ class TrajetorySampler(object):
             self.task.setup(position=pos)
             result = self.task.replanning(ignore_collision=False, bench_type="normal")
             if result is None:
+                return False
+            if not self.task.check_trajectory(n_mid=20):
+                print("check trajectory failed")
                 return False
             return result.nfev < 30
         return predicate
