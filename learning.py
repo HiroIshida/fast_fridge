@@ -1,3 +1,4 @@
+import argparse
 import dill
 import numpy as np
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
@@ -125,8 +126,8 @@ class TrajetorySampler(object):
 
             self.nominal_trajectory_cache = None
             if self.rpa.is_terminated():
-                self.rpa.show(showtype="strange")
-                plt.show()
+                #self.rpa.show(showtype="strange")
+                #plt.show()
                 break
             pos_next = self.rpa.get_next_point()
             gea, cea = self.rpa.update(pos_next, predicate_generator=self.predicate_generator)
@@ -141,7 +142,13 @@ class TrajetorySampler(object):
         return TrajectoryLibrary(self.traj_list, self.grid)
 
 if __name__=='__main__':
-    N_grid = 4
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument('-n', type=int, default=4)
+    args = parser.parse_args()
+
+    N_grid = args.n
     ts = TrajetorySampler(N_grid=N_grid)
     ts.run()
     ts = TrajetorySampler.from_dilled_data(N_grid)
