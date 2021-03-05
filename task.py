@@ -34,6 +34,10 @@ from sample_from_manifold import ManifoldSampler
 from geometry_msgs.msg import Pose
 from control_msgs.msg import FollowJointTrajectoryActionFeedback
 
+class PreReplanFailException(Exception):
+    # ad hoc; should be put with TrajectoryLibrary
+    pass
+
 def bench(func):
     def wrapper(*args, **kwargs):
         use_bench = ("bench_type" in kwargs)
@@ -474,8 +478,12 @@ class ReachingTask(PoseDependentTask):
 
         if self.traj_lib is not None:
             print("load initial trajectory using precompted library")  
+            print(position)
             x = position - self.fridge.worldpos()
+            print(x)
             traj = self.traj_lib.find_trajectory(x)
+            if traj is None:
+                raise PreReplanFailException()
             print("proper trajectory is found")
             self.av_seq_cache = traj.av_seq
 
