@@ -123,9 +123,9 @@ class PoseDependentTask(object):
 
     def setup(self, use_cache=True, **kwargs):
         self.is_setup = True
+        self._setup(**kwargs)
         if use_cache:
             self.create_av_init_from_cached_trajectory()
-        self._setup(**kwargs)
 
     def _setup(self, **kwargs):
         # task specific setup
