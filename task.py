@@ -379,7 +379,7 @@ class ReachingTask(PoseDependentTask):
 
         av_seq_init_partial = self.av_seq_cache[-n_wp_replan_dummy:, :]
 
-        slsqp_option = {'ftol': self.ftol * 0.01, 'disp': True, 'maxiter': 50}
+        slsqp_option = {'ftol': self.ftol, 'disp': True, 'maxiter': 50}
         res = tinyfk_sqp_plan_trajectory(
             self.sscc, self.cm_replan, av_seq_init_partial, self.joint_list, n_wp_replan_dummy,
             safety_margin=2e-2, with_base=True, slsqp_option=slsqp_option,
@@ -397,7 +397,7 @@ class ReachingTask(PoseDependentTask):
             return None
 
     def load_trajectory_library(self):
-        filename = "traj_lib20.dill"
+        filename = "traj_lib8.dill"
         """
         self.traj_lib = TrajectoryLibrary.load_dill(filename)
         with open(filename, 'rb') as f:
@@ -445,24 +445,6 @@ class ReachingTask(PoseDependentTask):
         rot = co_fridge_inside.worldrot()
         ypr = rpy_angle(rot)[0] # skrobot's rpy is ypr
         rpy = [ypr[2], ypr[1], ypr[0]]
-
-        """
-        # solve ik with collision constraint
-        if self.av_seq_cache is not None:
-            frame_name_list = ["l_gripper_tool_frame"]
-            target_pose_list = [np.hstack([position, rpy])]
-            av_goal = self.av_seq_cache[-1]
-            av_goal_new = tinyfk_sqp_inverse_kinematics(
-                    frame_name_list, 
-                    target_pose_list, 
-                    av_goal, 
-                    self.joint_list,
-                    self.robot_model.fksolver,
-                    collision_checker=self.sscc,
-                    strategy="multi",
-                    with_base=True)
-            self.av_seq_cache[-1] = av_goal_new
-        """
 
         if "av_start" in kwargs:
             self.cm.add_eq_configuration(0, kwargs["av_start"], force=True)
@@ -535,7 +517,9 @@ class Visualizer(object):
         cv.delete()
 
 def generate_solution_cache():
-    np.random.seed(30)
+    # np.random.seed(1010) # good
+    # np.random.seed(1020) # not bad
+    np.random.seed(10000)
 
     robot_model = pr2_init()
     joint_list = rarm_joint_list(robot_model)
@@ -587,7 +571,7 @@ def generate_solution_cache():
         print("retry..")
 
 if __name__=='__main__':
-    do_prepare = False
+    do_prepare = True
     if do_prepare:
         task1, task2, task3 = generate_solution_cache()
         vis = Visualizer()
@@ -600,25 +584,25 @@ if __name__=='__main__':
         joint_list = rarm_joint_list(robot_model)
         av_start = get_robot_config(robot_model, joint_list, with_base=True)
 
-        trans = [0.0, 0.0, 0.0]
+        trans = [-1.0, 0.0, 0.0]
         rpy = [0.0, 0.0, 0]
 
         task3 = ReachingTask(robot_model, 12)
         task3.load_sol_cache()
-        #task3.reset_fridge_pose_from_handle_pose(trans, rpy)
+        task3.reset_fridge_pose_from_handle_pose(trans, rpy)
         #task3.reset_fridge_pose(*fridge_pose)
         pos = task3.fridge.typical_object_position()
-        task3.load_trajectory_library()
-        task3.setup(position=pos + np.array([0.1, 0, 0.1]))
+        #task3.load_trajectory_library()
+        task3.setup(position=pos + np.array([0.0, 0, 0.0]))
 
-        opt_res = task3.replanning(ignore_collision=False, bench_type="simple")
+        opt_res = task3.replanning(ignore_collision=False, bench_type="normal")
         assert task3.check_trajectory()
 
         task2 = OpeningTask(robot_model, 10)
         task2.load_sol_cache()
         task2.reset_fridge_pose_from_handle_pose(trans, rpy)
-        #task2.reset_fridge_pose(*fridge_pose)
         task2.setup()
+
         vis = Visualizer()
         vis.show_task(task2)
         vis.show_task(task3)
