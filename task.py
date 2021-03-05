@@ -25,7 +25,6 @@ from skrobot.planner import ConstraintViewer
 from skrobot.planner.utils import get_robot_config
 from skrobot.planner.utils import set_robot_config
 from skrobot.planner.utils import update_fksolver
-from skrobot.planner.utils import gen_augumented_av_seq
 from pr2opt_common import *
 from door import Fridge, door_open_angle_seq
 import copy
@@ -260,8 +259,7 @@ class PoseDependentTask(object):
         return ms.get_whole_sample()
 
     def check_trajectory(self, n_mid=2):
-        traj_cache_aug = gen_augumented_av_seq(self.av_seq_cache, n_mid=n_mid)
-        return self.sscc.check_trajectory(self.joint_list, traj_cache_aug, with_base=True)
+        return self.sscc.check_trajectory(self.joint_list, self.av_seq_cache, n_mid=n_mid, with_base=True)
 
 class ApproachingTask(PoseDependentTask):
     def __init__(self, robot_model, n_wp):
