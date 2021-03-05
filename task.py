@@ -364,7 +364,7 @@ class ReachingTask(PoseDependentTask):
         return av_seq_list
 
     @bench
-    def replanning(self, ignore_collision=False, **kwargs):
+    def replanning(self, ignore_collision=False, callback=None, **kwargs):
         assert self.is_setup, "plase setup the task before solving"
         self.is_setup = False
 
@@ -378,7 +378,6 @@ class ReachingTask(PoseDependentTask):
         av_seq_init_partial = self.av_seq_cache[-n_wp_replan_dummy:, :]
 
         slsqp_option = {'ftol': self.ftol * 0.01, 'disp': True, 'maxiter': 50}
-        callback = None
         res = tinyfk_sqp_plan_trajectory(
             self.sscc, self.cm_replan, av_seq_init_partial, self.joint_list, n_wp_replan_dummy,
             safety_margin=2e-2, with_base=True, slsqp_option=slsqp_option,
@@ -396,7 +395,7 @@ class ReachingTask(PoseDependentTask):
             return None
 
     def load_trajectory_library(self):
-        filename = "traj_lib8.dill"
+        filename = "traj_lib20.dill"
         """
         self.traj_lib = TrajectoryLibrary.load_dill(filename)
         with open(filename, 'rb') as f:
