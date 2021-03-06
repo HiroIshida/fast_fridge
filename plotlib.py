@@ -4,7 +4,7 @@ from skimage import measure
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-with open("traj_sampler_cache8.dill", 'rb') as f:
+with open("traj_sampler_cache20.dill", 'rb') as f:
     model = dill.load(f)
     traj_list = model.traj_list
     grid = model.grid
@@ -31,19 +31,23 @@ for traj in traj_list:
     try:
         verts, faces, _, _ = measure.marching_cubes_lewiner(F, 0, spacing=spacing)
         verts = verts + np.atleast_2d(grid.b_min)
-        ax.plot_trisurf(verts[:, 0], verts[:,1], faces, verts[:, 2], alpha=0.1)
+        ax.plot_trisurf(verts[:, 0], verts[:,1], faces, verts[:, 2], color="yellow", alpha=0.3)
     except:
         pass
 
 pts_positive = grid.pts[bitvec_whole_positive]
 def myscat(P, **kwargs):
     ax.scatter(P[:, 0], P[:, 1], P[:, 2], **kwargs)
-myscat(grid.pts[bitvec_whole_positive], c="blue", s=3)
 bitvec_negative = np.logical_and(bitvec_inside_fridge, ~bitvec_whole_positive)
-myscat(grid.pts[bitvec_whole_positive], c="blue", s=3)
-myscat(grid.pts[bitvec_negative], c="red", s=3)
+myscat(grid.pts[bitvec_whole_positive], c="blue", s=1)
+myscat(grid.pts[bitvec_negative], c="red", s=1)
 xlim, ylim, zlim = zip(grid.b_min, grid.b_max)
 ax.set_xlim(xlim)
 ax.set_ylim(ylim)
 ax.set_zlim(zlim)
+
+ax.set_xlabel("x")
+ax.set_ylabel("y")
+ax.set_zlabel("z")
+
 plt.show()
