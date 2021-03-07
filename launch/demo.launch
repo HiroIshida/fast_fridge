@@ -76,4 +76,7 @@
   </group>
   <node pkg="fast_fridge" type="can_pose_publisher.py" name="can_pose_publish" output="screen"/>
   <node pkg="fast_fridge" type="pose_processor.py" name="pose_processor" output="screen"/>
+
+  <node name="replay" pkg="rviz" type="rviz"
+    args="-d $(find fast_fridge)/config/bagplay.rviz"/>
 </launch>
