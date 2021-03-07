@@ -197,13 +197,13 @@
    <link name="door_link">
       <visual>
          <geometry>
-            <box size="0.03 0.53 0.67"/>
+            <box size="0.11 0.53 0.67"/>
          </geometry>
          <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.265 0.335"/>
       </visual>
       <collision>
          <geometry>
-            <box size="0.03 0.53 0.67"/>
+            <box size="0.11 0.53 0.67"/>
          </geometry>
          <origin rpy="0.0 -0.0 0.0" xyz="0.0 0.265 0.335"/>
       </collision>
@@ -220,14 +220,14 @@
       <parent link="base_link"/>
       <child link="door_link"/>
       <axis xyz="0 0 1"/>
-      <origin rpy="0 0 0" xyz="-0.285 -0.265 0.83"/>
+      <origin rpy="0 0 0" xyz="-0.23 -0.265 0.83"/>
       <limit effort="1.0" lower="0.0" upper="2.0" velocity="2.0"/>
    </joint>
    <joint name="handle_joint" type="fixed">
       <parent link="door_link"/>
       <child link="handle_link"/>
       <axis xyz="0 0 1"/>
-      <origin rpy="0 0 0" xyz="-0.03 0.49 0.25"/>
+      <origin rpy="0 0 0" xyz="-0.06 0.49 0.25"/>
    </joint>
 
    <joint name="desk_joint" type="fixed">
