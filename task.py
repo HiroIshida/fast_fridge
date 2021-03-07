@@ -397,7 +397,7 @@ class ReachingTask(PoseDependentTask):
             return None
 
     def load_trajectory_library(self):
-        filename = "traj_lib8.dill"
+        filename = "traj_lib20.dill"
         """
         self.traj_lib = TrajectoryLibrary.load_dill(filename)
         with open(filename, 'rb') as f:
@@ -571,7 +571,7 @@ def generate_solution_cache():
         print("retry..")
 
 if __name__=='__main__':
-    do_prepare = True
+    do_prepare = False
     if do_prepare:
         task1, task2, task3 = generate_solution_cache()
         vis = Visualizer()
@@ -593,7 +593,7 @@ if __name__=='__main__':
         #task3.reset_fridge_pose(*fridge_pose)
         pos = task3.fridge.typical_object_position()
         #task3.load_trajectory_library()
-        task3.setup(position=pos + np.array([0.0, 0, 0.0]))
+        task3.setup(position=pos + np.array([0.09, 0, 0.12]))
 
         opt_res = task3.replanning(ignore_collision=False, bench_type="normal")
         assert task3.check_trajectory()

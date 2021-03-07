@@ -17,7 +17,7 @@ from regexp import GridExpansionAlgorithm
 from regexp import RegionPopulationAlgorithm2
 from regexp import InvalidSearchCenterPointException
 
-np.random.seed(1)
+np.random.seed(2)
 
 class RegionEquippedTrajectory(object):
     def __init__(self, av_seq, feasible_set, classifier):
@@ -114,7 +114,7 @@ class TrajetorySampler(object):
             if not self.task.check_trajectory(n_mid=20):
                 print("check trajectory failed")
                 return False
-            return result.nfev < 30
+            return result.nfev < 40
         return predicate
 
     def run(self):
