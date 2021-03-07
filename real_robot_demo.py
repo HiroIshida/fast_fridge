@@ -89,7 +89,7 @@ class FridgeDemo(object):
 
         self.task_approach = ApproachingTask(self.robot_model, 10)
         self.task_open = OpeningTask(self.robot_model, 10)
-        self.task_reach = ReachingTask(self.robot_model, 10)
+        self.task_reach = ReachingTask(self.robot_model, 12)
 
         self.task_approach.load_sol_cache()
         self.task_open.load_sol_cache()
@@ -100,7 +100,7 @@ class FridgeDemo(object):
         self.ri = skrobot.interfaces.ros.PR2ROSRobotInterface(self.robot_model2)
 
         # real robot command stuff
-        self.duration = 0.7
+        self.duration = 0.55
 
         # ros stuff
         self.handle_pose = None
@@ -140,7 +140,7 @@ class FridgeDemo(object):
         self.handle_pose = [pos, rpy]
 
     def initialize_robot_pose(self):
-        self.ri.move_gripper("rarm", pos=0.08)
+        self.ri.move_gripper("rarm", pos=0.065)
         self.ri.angle_vector(self.robot_model2.angle_vector(), time=2.5, time_scale=1.0) # copy angle vector to real robot
 
     def update_fridge_pose(self):
@@ -196,7 +196,7 @@ class FridgeDemo(object):
 
         if send_action:
             self._send_cmd(self.task_open.av_seq_cache)
-            self.ri.move_gripper("rarm", pos=0.0)
+            self.ri.move_gripper("rarm", pos=0.0, effort=10000)
 
         thread = threading.Thread(target=keep_solvin)
         thread.start()

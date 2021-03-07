@@ -20,6 +20,8 @@ from skrobot.planner import tinyfk_sqp_plan_trajectory
 from skrobot.planner import tinyfk_sqp_inverse_kinematics
 from skrobot.planner import tinyfk_measure_nullspace
 from skrobot.planner import TinyfkSweptSphereSdfCollisionChecker
+from skrobot.planner.constraint_manager import InvalidPoseCstrException
+from skrobot.planner.constraint_manager import InvalidConfigurationCstrException
 from skrobot.planner import ConstraintManager
 from skrobot.planner import ConstraintViewer
 from skrobot.planner.utils import get_robot_config
@@ -519,7 +521,7 @@ class Visualizer(object):
 def generate_solution_cache():
     # np.random.seed(1010) # good
     # np.random.seed(1020) # not bad
-    np.random.seed(10000)
+    np.random.seed(100000)
 
     robot_model = pr2_init()
     joint_list = rarm_joint_list(robot_model)
@@ -532,6 +534,7 @@ def generate_solution_cache():
     task3.reset_fridge_pose(*fridge_pose)
     task3.setup(use_cache=False, position=None)
 
+    n_mid = 20
     N = 2000
     """
     X3_start = task3.sample_from_constraint_manifold(k_wp=0, n_sample=N, eps=0.1)
@@ -550,13 +553,14 @@ def generate_solution_cache():
         task3.setup(use_cache=False, position=None)
         av_seq_sol3 = task3.solve(use_cache=False)
         if av_seq_sol3 is not None:
-            if task3.check_trajectory():
+            if task3.check_trajectory(n_mid=n_mid):
                 print("task3 solved")
                 task2 = OpeningTask(robot_model, 10)
                 task2.reset_fridge_pose(*fridge_pose)
                 task2.setup(use_cache=False)
                 task2.cm.add_eq_configuration(task2.n_wp-1, av_seq_sol3[0], force=True)
                 av_seq_sol2 = task2.solve(use_cache=False)
+
                 if av_seq_sol2 is not None:
                     print("task2 solved")
                     task1 = ApproachingTask(robot_model, 10)
@@ -564,14 +568,14 @@ def generate_solution_cache():
                     task1.setup(av_start=av_start, av_final=av_seq_sol2[0], use_cache=False)
                     av_seq_sol1 = task1.solve(use_cache=False)
                     if av_seq_sol1 is not None:
-                        if task1.check_trajectory():
+                        if task1.check_trajectory(n_mid=n_mid):
                             for task in [task1, task2, task3]:
                                 task.dump_sol_cache()
                             return task1, task2, task3
         print("retry..")
 
 if __name__=='__main__':
-    do_prepare = False
+    do_prepare = True
     if do_prepare:
         task1, task2, task3 = generate_solution_cache()
         vis = Visualizer()
