@@ -3,7 +3,8 @@ import skrobot
 def pr2_init():
     robot_model = skrobot.models.PR2()
     robot_model.reset_manip_pose()
-    robot_model.head_tilt_joint.joint_angle(0.4)
+    robot_model.head_tilt_joint.joint_angle(0.6)
+    robot_model.head_pan_joint.joint_angle(0.15)
     return robot_model
 
 def rarm_joint_list(robot_model):

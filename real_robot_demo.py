@@ -94,6 +94,7 @@ class FridgeDemo(object):
         self.task_approach.load_sol_cache()
         self.task_open.load_sol_cache()
         self.task_reach.load_sol_cache()
+        self.task_reach.load_trajectory_library()
 
         self.robot_model2 = pr2_init() # for robot interface
         self.robot_model2.fksolver = None
@@ -141,6 +142,7 @@ class FridgeDemo(object):
 
     def initialize_robot_pose(self):
         self.ri.move_gripper("rarm", pos=0.065)
+        self.ri.move_gripper("larm", pos=0.0)
         self.ri.angle_vector(self.robot_model2.angle_vector(), time=2.5, time_scale=1.0) # copy angle vector to real robot
 
     def update_fridge_pose(self):
@@ -159,13 +161,20 @@ class FridgeDemo(object):
                 av_start=self.av_start,
                 av_final=self.task_open.av_seq_cache[0],
                 use_cache=False)
-        self.task_approach.solve(use_cache=False)
+        av_seq_sol = self.task_approach.solve(use_cache=False)
+        if av_seq_sol is None:
+            raise Exception # for safety
 
         if send_action:
             self._send_cmd(self.task_approach.av_seq_cache)
             time.sleep(self.duration * len(self.task_approach.av_seq_cache))
 
+    def send_cmd_first_and_second_batch(self):
+        av_seq_batch = np.vstack([self.task_approach.av_seq_cache, self.task_open.av_seq_cache])
+        self._send_cmd(av_seq_batch)
+
     def solve_while_second_phase(self, send_action=False):
+        """
         share_dict = {"pose": None, "is_running": True}
 
 
@@ -193,26 +202,48 @@ class FridgeDemo(object):
                     except TakingTooLongException:
                         pass
                 rospy.loginfo(log_prefix + "aborted because tf_can_to_wrold is None")
+        """
 
         if send_action:
             self._send_cmd(self.task_open.av_seq_cache)
             self.ri.move_gripper("rarm", pos=0.0, effort=10000)
 
+        """
         thread = threading.Thread(target=keep_solvin)
         thread.start()
-
-        time.sleep(self.duration * len(self.task_open.av_seq_cache))
+        """
+        time.sleep(self.duration * (len(self.task_open.av_seq_cache)-1.7))
+        """
         share_dict["is_running"] = False
+        """
 
     def solve_third_phase(self, send_action=False):
         assert (self.tf_can_to_world is not None)
-        if self.tf_can_to_world is not None:
-            trans = self.tf_can_to_world[0]
-            av_start = self.task_open.av_seq_cache[-1]
-            self.task_reach.setup(position=trans, av_start=av_start, use_cache=True)
-            self.task_reach.solve(use_cache=True)
+
+        trans = self.tf_can_to_world[0]
+        fridge_pos = self.task_open.fridge.worldpos()
+        relative = trans - fridge_pos
+
+        tmp_coords = self.task_open.fridge.copy_worldcoords()
+        tmp_coords.translate([-0.04, 0, 0])
+
+        trans_modified = tmp_coords.worldpos() + relative
+
+        av_start = self.task_open.av_seq_cache[-1]
+        self.task_reach.setup(position=trans_modified, av_start=av_start, use_cache=True)
+        self.task_reach.replanning()
+
         if send_action:
             self._send_cmd(self.task_reach.av_seq_cache)
+
+    def send_final_phase(self):
+        self.ri.go_pos_unsafe_no_wait(0.12, 0.08)
+        time.sleep(1.0)
+        self.ri.move_gripper("larm", pos=0.0)
+        set_robot_config(self.task_reach.robot_model, self.joint_list, self.task_reach.av_seq_cache[-1], with_base=True)
+        demo.task_reach.robot_model.larm.move_end_pos([-0.2, 0.0, 0.05])
+        self.ri.angle_vector(demo.task_reach.robot_model.angle_vector(), time=1.0)
+
 
     def _send_cmd(self, av_seq):
         def modify_base_pose(base_pose_seq):
@@ -249,15 +280,24 @@ class FridgeDemo(object):
         vis.show_task(self.task_reach)
 
 if __name__=='__main__':
-    rospy.init_node('planner', anonymous=True)
-    vis = Visualizer()
-    np.random.seed(3)
-    demo = FridgeDemo()
+    try:
+        vis
+    except:
+        rospy.init_node('planner', anonymous=True)
+        vis = Visualizer()
+        np.random.seed(3)
+        demo = FridgeDemo()
     demo.initialize_robot_pose()
     time.sleep(3)
 
     demo.update_fridge_pose()
+    demo.duration = 0.4
     demo.solve_first_phase(send_action=True)
+    demo.duration = 0.6
     demo.solve_while_second_phase(send_action=True)
-    demo.solve_third_phase(send_action=False)
-    vis.show_task(demo.task_reach)
+    demo.duration = 0.4
+    demo.solve_third_phase(send_action=True)
+    demo.ri.move_gripper("rarm", pos=0.12)
+    time.sleep(2.0)
+    demo.ri.move_gripper("larm", pos=0.08)
+    demo.send_final_phase()
