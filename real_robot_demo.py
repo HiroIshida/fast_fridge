@@ -231,7 +231,10 @@ class FridgeDemo(object):
 
         av_start = self.task_open.av_seq_cache[-1]
         self.task_reach.setup(position=trans_modified, av_start=av_start, use_cache=True)
+
+        ts = time.time()
         self.task_reach.replanning()
+        rospy.loginfo("[replanning] elapsed time: {0}".format(time.time()-ts))
 
         if send_action:
             self._send_cmd(self.task_reach.av_seq_cache)
@@ -264,9 +267,9 @@ class FridgeDemo(object):
             full_av_seq.append(self.robot_model.angle_vector())
         n_wp = len(full_av_seq)
 
-        time_seq = [self.duration]*n_wp
-        self.ri.angle_vector_sequence(full_av_seq, time_seq)
-        self.ri.move_trajectory_sequence(base_pose_seq, time_seq, send_action=True)
+        time_seq = [self.duration]*(n_wp - 1)
+        self.ri.angle_vector_sequence(full_av_seq[1:], time_seq)
+        self.ri.move_trajectory_sequence(base_pose_seq[1:], time_seq, send_action=True)
 
         # set transforms for later tf computation
         self.tf_base_nominal_to_odom = self.tf_base_to_odom
