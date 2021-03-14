@@ -1,7 +1,9 @@
 <launch>
   <rosparam param="/use_sim_time">true</rosparam>
+  <arg name="length0" default="1.0" />
+  <arg name="model" default="$(find pr2_description)/robots/pr2.urdf.xacro"/>
+  <param name="robot_description" command="$(find xacro)/xacro $(arg model)  length:=$(arg length0) --inorder" />
   <node pkg="rosbag" type="play" name="player" output="screen"
-      args="-l --clock $(find fast_fridge)/rosbag/estimation.bag"/>
+      args="-l --clock $(find fast_fridge)/rosbag/rvizvis.bag"/>
   <node type="rviz" name="rviz" pkg="rviz" args="-d $(find fast_fridge)/config/bagplay.rviz"/>
-  <node pkg="fast_fridge" type="pose_processor.py" name="pose_pub" output="screen"/>
 </launch>
