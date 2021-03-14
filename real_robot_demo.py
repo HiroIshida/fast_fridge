@@ -86,6 +86,7 @@ class FridgeDemo(object):
         self.joint_list = rarm_joint_list(self.robot_model)
         av_start = get_robot_config(self.robot_model, self.joint_list, with_base=True)
         self.av_start = av_start
+        self.duration = 1.0
 
         self.task_approach = ApproachingTask(self.robot_model, 10)
         self.task_open = OpeningTask(self.robot_model, 10)
@@ -99,9 +100,6 @@ class FridgeDemo(object):
         self.robot_model2 = pr2_init() # for robot interface
         self.robot_model2.fksolver = None
         self.ri = skrobot.interfaces.ros.PR2ROSRobotInterface(self.robot_model2)
-
-        # real robot command stuff
-        self.duration = 0.55
 
         # ros stuff
         self.handle_pose = None
@@ -141,7 +139,7 @@ class FridgeDemo(object):
         self.handle_pose = [pos, rpy]
 
     def initialize_robot_pose(self):
-        self.ri.move_gripper("rarm", pos=0.065)
+        self.ri.move_gripper("rarm", pos=0.060)
         self.ri.move_gripper("larm", pos=0.0)
         self.ri.angle_vector(self.robot_model2.angle_vector(), time=2.5, time_scale=1.0) # copy angle vector to real robot
 
@@ -166,8 +164,9 @@ class FridgeDemo(object):
             raise Exception # for safety
 
         if send_action:
-            self._send_cmd(self.task_approach.av_seq_cache)
-            time.sleep(self.duration * len(self.task_approach.av_seq_cache))
+            time_seq = self.task_approach.default_send_duration
+            self._send_cmd(self.task_approach.av_seq_cache, time_seq=time_seq)
+            time.sleep(sum(time_seq))
 
     def send_cmd_first_and_second_batch(self):
         av_seq_batch = np.vstack([self.task_approach.av_seq_cache, self.task_open.av_seq_cache])
@@ -205,17 +204,10 @@ class FridgeDemo(object):
         """
 
         if send_action:
-            self._send_cmd(self.task_open.av_seq_cache)
+            time_seq = self.task_open.default_send_duration
+            self._send_cmd(self.task_open.av_seq_cache, time_seq=time_seq)
             self.ri.move_gripper("rarm", pos=0.0, effort=10000)
-
-        """
-        thread = threading.Thread(target=keep_solvin)
-        thread.start()
-        """
-        time.sleep(self.duration * (len(self.task_open.av_seq_cache)-2.0))
-        """
-        share_dict["is_running"] = False
-        """
+            time.sleep(sum(time_seq)-1.5)
 
     def solve_third_phase(self, send_action=False):
         assert (self.tf_can_to_world is not None)
@@ -237,7 +229,8 @@ class FridgeDemo(object):
         rospy.loginfo("[replanning] elapsed time: {0}".format(time.time()-ts))
 
         if send_action:
-            self._send_cmd(self.task_reach.av_seq_cache)
+            time_seq = self.task_reach.default_send_duration
+            self._send_cmd(self.task_reach.av_seq_cache, time_seq=time_seq)
 
     def send_final_phase(self):
         self.ri.go_pos_unsafe_no_wait(0.12, 0.08)
@@ -248,7 +241,7 @@ class FridgeDemo(object):
         self.ri.angle_vector(demo.task_reach.robot_model.angle_vector(), time=1.0)
 
 
-    def _send_cmd(self, av_seq):
+    def _send_cmd(self, av_seq, time_seq=None):
         def modify_base_pose(base_pose_seq):
             # TODO consider removing the first waypoint
             base_init = base_pose_seq[0]
@@ -267,7 +260,9 @@ class FridgeDemo(object):
             full_av_seq.append(self.robot_model.angle_vector())
         n_wp = len(full_av_seq)
 
-        time_seq = [self.duration]*(n_wp - 1)
+        if time_seq is None:
+            time_seq = [self.duration]*(n_wp - 1)
+        assert len(time_seq) == (n_wp - 1)
         self.ri.angle_vector_sequence(full_av_seq[1:], time_seq)
         self.ri.move_trajectory_sequence(base_pose_seq[1:], time_seq, send_action=True)
 
@@ -294,13 +289,10 @@ if __name__=='__main__':
     time.sleep(3)
 
     demo.update_fridge_pose()
-    demo.duration = 0.4
     demo.solve_first_phase(send_action=True)
-    demo.duration = 0.6
     demo.solve_while_second_phase(send_action=True)
-    demo.duration = 0.4
     demo.solve_third_phase(send_action=True)
-    demo.ri.move_gripper("rarm", pos=0.12)
+    demo.ri.move_gripper("rarm", pos=0.12, wait=False)
     time.sleep(2.0)
-    demo.ri.move_gripper("larm", pos=0.08)
+    demo.ri.move_gripper("larm", pos=0.08, wait=False)
     demo.send_final_phase()

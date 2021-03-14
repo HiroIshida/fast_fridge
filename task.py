@@ -267,6 +267,10 @@ class PoseDependentTask(object):
     def check_trajectory(self, n_mid=2):
         return self.sscc.check_trajectory(self.joint_list, self.av_seq_cache, n_mid=n_mid, with_base=True)
 
+    @property
+    def default_send_duration(self):
+        return [0.35] * (self.n_wp - 1)
+
 class ApproachingTask(PoseDependentTask):
     def __init__(self, robot_model, n_wp):
         super(ApproachingTask, self).__init__(robot_model, n_wp, True)
@@ -330,6 +334,12 @@ class OpeningTask(PoseDependentTask):
                 self.cm.add_pose_constraint(idx, "r_gripper_tool_frame", pose, force=True)
             sdf_list.append(self.fridge.gen_sdf(angle))
         self.sscc.set_sdf(sdf_list)
+
+    @property
+    def default_send_duration(self):
+        duration_list = super(OpeningTask, self).default_send_duration
+        duration_list[0] = 1.0
+        return duration_list
 
 class ReachingTask(PoseDependentTask):
     def __init__(self, robot_model, n_wp, n_wp_replan=None):
@@ -470,6 +480,7 @@ class ReachingTask(PoseDependentTask):
                 raise PreReplanFailException()
             print("proper trajectory is found")
             self.av_seq_cache = traj.av_seq
+
 
 class Visualizer(object):
     def __init__(self):
