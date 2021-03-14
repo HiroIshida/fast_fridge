@@ -86,7 +86,7 @@ class FridgeDemo(object):
         self.joint_list = rarm_joint_list(self.robot_model)
         av_start = get_robot_config(self.robot_model, self.joint_list, with_base=True)
         self.av_start = av_start
-        self.duration = 1.0
+        self.duration = 0.4
 
         self.task_approach = ApproachingTask(self.robot_model, 10)
         self.task_open = OpeningTask(self.robot_model, 10)
@@ -207,7 +207,7 @@ class FridgeDemo(object):
             time_seq = self.task_open.default_send_duration
             self._send_cmd(self.task_open.av_seq_cache, time_seq=time_seq)
             self.ri.move_gripper("rarm", pos=0.0, effort=10000)
-            time.sleep(sum(time_seq)-1.5)
+            time.sleep(sum(time_seq)-0.8)
 
     def solve_third_phase(self, send_action=False):
         assert (self.tf_can_to_world is not None)
@@ -233,13 +233,20 @@ class FridgeDemo(object):
             self._send_cmd(self.task_reach.av_seq_cache, time_seq=time_seq)
 
     def send_final_phase(self):
-        self.ri.go_pos_unsafe_no_wait(0.12, 0.08)
+        vec_go_pos = np.array([0.12, 0.08])*0.95
+        self.ri.go_pos_unsafe_no_wait(*vec_go_pos.tolist())
         time.sleep(1.0)
         self.ri.move_gripper("larm", pos=0.0)
+        """
+        # robomech version
         set_robot_config(self.task_reach.robot_model, self.joint_list, self.task_reach.av_seq_cache[-1], with_base=True)
         demo.task_reach.robot_model.larm.move_end_pos([-0.2, 0.0, 0.05])
         self.ri.angle_vector(demo.task_reach.robot_model.angle_vector(), time=1.0)
-
+        """
+        self.ri.go_pos_unsafe_no_wait(*((-vec_go_pos).tolist()))
+        time.sleep(1.0)
+        av_seq_reverse = np.flip(self.task_reach.av_seq_cache, axis=0)
+        self._send_cmd(av_seq_reverse)
 
     def _send_cmd(self, av_seq, time_seq=None):
         def modify_base_pose(base_pose_seq):
@@ -289,8 +296,10 @@ if __name__=='__main__':
     time.sleep(3)
 
     demo.update_fridge_pose()
+
     demo.solve_first_phase(send_action=True)
     demo.solve_while_second_phase(send_action=True)
+    time.sleep(2.0)
     demo.solve_third_phase(send_action=True)
     demo.ri.move_gripper("rarm", pos=0.12, wait=False)
     time.sleep(2.0)
