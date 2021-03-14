@@ -212,7 +212,7 @@ class FridgeDemo(object):
         thread = threading.Thread(target=keep_solvin)
         thread.start()
         """
-        time.sleep(self.duration * (len(self.task_open.av_seq_cache)-1.7))
+        time.sleep(self.duration * (len(self.task_open.av_seq_cache)-2.0))
         """
         share_dict["is_running"] = False
         """

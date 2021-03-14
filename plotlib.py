@@ -41,6 +41,7 @@ pts_positive = grid.pts[bitvec_whole_positive]
 def myscat(P, **kwargs):
     ax.scatter(P[:, 0], P[:, 1], P[:, 2], **kwargs)
 
+
 bitvec_negative = np.logical_and(bitvec_inside_fridge, ~bitvec_whole_positive)
 myscat(grid.pts[bitvec_whole_positive], c="blue", s=2)
 myscat(grid.pts[bitvec_negative], c="red", s=1)
@@ -61,6 +62,7 @@ ax.set_xlabel("x")
 ax.set_ylabel("y")
 ax.set_zlabel("z")
 fig.set_size_inches(9.5, 7.2)
+ax.view_init(elev=10., azim=-250)
 filename = "feasible_set{0}.png".format("_withsurf" if with_surf else "")
 plt.savefig(filename, format="png", dpi=300)
 plt.show()
