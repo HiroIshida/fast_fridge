@@ -57,7 +57,7 @@
           args="load jsk_pcl/EuclideanClustering $(arg manager)" output="screen">
       <remap from="~input" to="$(arg OUTPUT)" />
       <rosparam>
-        tolerance: 0.02
+        tolerance: 0.05
         min_size: 30
       </rosparam>
     </node>
