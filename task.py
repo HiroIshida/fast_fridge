@@ -480,6 +480,7 @@ class ReachingTask(PoseDependentTask):
                 raise PreReplanFailException()
             print("proper trajectory is found")
             self.av_seq_cache = traj.av_seq
+            self.fridge_pose_cache = Coordinates() ## IMPORTANT
 
 
 class Visualizer(object):
