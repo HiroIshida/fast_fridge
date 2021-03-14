@@ -27,7 +27,7 @@
     <arg name="s_max" value="146" />
     <arg name="s_min" value="132" />
     <arg name="i_max" value="86" />
-    <arg name="i_min" value="21" />
+    <arg name="i_min" value="30" />
 
 
   <arg name="create_manager" default="true" />
