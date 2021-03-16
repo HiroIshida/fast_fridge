@@ -17,7 +17,7 @@
   * subscribe tf and find /target
   -->
 
-    <arg name="INPUT" default="/kinect_head/depth_registered/points"/>
+    <arg name="INPUT" default="/kinect_head/depth_registered/half/points"/>
     <arg name="CENTROID_FRAME" default="target"/>
     <arg name="DEFAULT_NAMESPACE" default="ishida_demo"/>
     <arg name="FILTER_NAME_SUFFIX" default=""/>
@@ -58,7 +58,7 @@
       <remap from="~input" to="$(arg OUTPUT)" />
       <rosparam>
         tolerance: 0.05
-        min_size: 30
+        min_size: 15
       </rosparam>
     </node>
 
