@@ -269,7 +269,7 @@ class PoseDependentTask(object):
 
     @property
     def default_send_duration(self):
-        return [0.4] * (self.n_wp - 1)
+        return [0.35] * (self.n_wp - 1)
 
 class ApproachingTask(PoseDependentTask):
     def __init__(self, robot_model, n_wp):

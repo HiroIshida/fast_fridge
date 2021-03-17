@@ -207,10 +207,15 @@ class FridgeDemo(object):
             time_seq = self.task_open.default_send_duration
             self._send_cmd(self.task_open.av_seq_cache, time_seq=time_seq)
             self.ri.move_gripper("rarm", pos=0.0, effort=10000)
-            time.sleep(sum(time_seq)-0.6)
+            time.sleep(sum(time_seq)-1.8)
 
     def solve_third_phase(self, send_action=False):
-        assert (self.tf_can_to_world is not None)
+        counter = 0
+        while (self.tf_can_to_world is None):
+            if counter == 4:
+                raise Exception
+            time.sleep(0.5)
+            counter += 1
 
         trans = self.tf_can_to_world[0]
         fridge_pos = self.task_open.fridge.worldpos()
@@ -226,7 +231,8 @@ class FridgeDemo(object):
         self.task_reach.setup(position=trans_modified, av_start=av_start, use_cache=True)
 
         ts = time.time()
-        self.task_reach.replanning()
+        ret = self.task_reach.replanning()
+        assert ret is not None
         rospy.loginfo("[replanning] elapsed time: {0}".format(time.time()-ts))
 
         if send_action:
@@ -236,9 +242,10 @@ class FridgeDemo(object):
     def send_final_phase(self):
         vec_go_pos = np.array([0.12, 0.08])*0.95
         self.ri.go_pos_unsafe_no_wait(*vec_go_pos.tolist(), sec=2.0)
+        time.sleep(1.5)
+        self.ri.move_gripper("larm", pos=0.0, wait=False)
+        self.ri.move_gripper("rarm", pos=0.0, wait=False)
         time.sleep(1.0)
-        self.ri.move_gripper("larm", pos=0.0)
-        self.ri.move_gripper("rarm", pos=0.0)
         """
         # robomech version
         set_robot_config(self.task_reach.robot_model, self.joint_list, self.task_reach.av_seq_cache[-1], with_base=True)
@@ -259,14 +266,14 @@ class FridgeDemo(object):
         ret = demo.task_reach.robot_model.larm.move_end_pos(np.array([-0.2, 0, -0.3]), rotation_axis=None)
         demo.ri.angle_vector(demo.task_reach.robot_model.angle_vector(), time=1.0)
 
-        diff = np.array([0.3, -0.2, 0.15])
+        diff = np.array([0.35, -0.2, 0.15])
         ret = demo.task_reach.robot_model.rarm.move_end_pos(diff, rotation_axis=None)
         ik_success = (ret is not None)
         assert ik_success
 
-        demo.ri.angle_vector(demo.task_reach.robot_model.angle_vector(), time=1.5)
-        demo.ri.wait_interpolation()
-        demo.ri.angle_vector(demo.robot_model2.angle_vector(), time=2.5, time_scale=1.0)
+        demo.ri.angle_vector(demo.task_reach.robot_model.angle_vector(), time=2.0)
+        time.sleep(1.2)
+        demo.ri.angle_vector(demo.robot_model2.angle_vector(), time=2.0, time_scale=1.0)
 
         """
         av_seq_reverse = np.flip(self.task_open.av_seq_cache, axis=0)
@@ -329,11 +336,11 @@ if __name__=='__main__':
 
     demo.solve_first_phase(send_action=True)
     demo.solve_while_second_phase(send_action=True)
+    time.sleep(1.0)
     demo.solve_third_phase(send_action=True)
+    time.sleep(2.5)
     demo.ri.move_gripper("rarm", pos=0.12, wait=False)
     demo.ri.move_gripper("larm", pos=0.12, wait=False)
+    time.sleep(1.5)
     demo.send_final_phase()
-
-    demo.task_reach.robot_model.angle_vector(demo.ri.angle_vector())
-    vis.update(get_robot_config(demo.robot_model, demo.joint_list, with_base=True))
 
