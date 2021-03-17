@@ -18,16 +18,43 @@
   -->
 
     <arg name="INPUT" default="/kinect_head/depth_registered/half/points"/>
+    <arg name="INPUT2" default="/ExtractIndices/output"/>
     <arg name="CENTROID_FRAME" default="target"/>
     <arg name="DEFAULT_NAMESPACE" default="ishida_demo"/>
     <arg name="FILTER_NAME_SUFFIX" default=""/>
     <arg name="OUTPUT" default="hsi_output$(arg FILTER_NAME_SUFFIX)"/>
-    <arg name="h_max" value="13" />
-    <arg name="h_min" value="-25" />
-    <arg name="s_max" value="146" />
-    <arg name="s_min" value="132" />
-    <arg name="i_max" value="86" />
+    <arg name="h_max" value="9" />
+    <arg name="h_min" value="-21" />
+    <arg name="s_max" value="255" />
+    <arg name="s_min" value="41" />
+    <arg name="i_max" value="73" />
     <arg name="i_min" value="30" />
+
+    <node name="boxfilter_pre" pkg="nodelet" type="nodelet"
+      args="standalone jsk_pcl/AttentionClipper"
+      output="screen">
+      <remap from="~input/points" to="$(arg INPUT)"/>
+      <rosparam>
+        use_multiple_attention: false
+        dimension_x: 1.0
+        dimension_y: 1.2
+        dimension_z: 0.8
+        initial_pos: 
+          - 1.0
+          - 0.0
+          - 1.0
+      </rosparam>
+    </node> 
+
+    <node name="ExtractIndices" pkg="nodelet" type="nodelet"
+      args="standalone jsk_pcl/ExtractIndices"
+      output="screen">
+      <remap from="~input" to="$(arg INPUT)"/>
+      <remap from="~indices" to="boxfilter_pre/output/point_indices"/>
+      <rosparam>
+        keep_organized: true
+      </rosparam>
+    </node>
 
 
   <arg name="create_manager" default="true" />
@@ -38,9 +65,11 @@
           pkg="nodelet" type="nodelet" name="$(arg manager)"
           args="manager" output="screen"/>
 
+
+
     <node pkg="nodelet" type="nodelet" name="hsi_filter$(arg FILTER_NAME_SUFFIX)"
           args="load jsk_pcl/HSIColorFilter $(arg manager)" output="screen">
-      <remap from="~input" to="$(arg INPUT)" />
+      <remap from="~input" to="$(arg INPUT2)" />
       <remap from="~output" to="$(arg OUTPUT)" />
       <rosparam>
         use_indices: false
@@ -57,8 +86,9 @@
           args="load jsk_pcl/EuclideanClustering $(arg manager)" output="screen">
       <remap from="~input" to="$(arg OUTPUT)" />
       <rosparam>
-        tolerance: 0.05
-        min_size: 15
+        tolerance: 0.02
+        min_size: 50
+        max_size: 200
       </rosparam>
     </node>
 

@@ -86,7 +86,7 @@ class FridgeDemo(object):
         self.joint_list = rarm_joint_list(self.robot_model)
         av_start = get_robot_config(self.robot_model, self.joint_list, with_base=True)
         self.av_start = av_start
-        self.duration = 0.4
+        self.duration = 0.35
 
         self.task_approach = ApproachingTask(self.robot_model, 10)
         self.task_open = OpeningTask(self.robot_model, 10)
@@ -212,7 +212,7 @@ class FridgeDemo(object):
     def solve_third_phase(self, send_action=False):
         counter = 0
         while (self.tf_can_to_world is None):
-            if counter == 4:
+            if counter == 6:
                 raise Exception
             time.sleep(0.5)
             counter += 1
@@ -240,7 +240,7 @@ class FridgeDemo(object):
             self._send_cmd(self.task_reach.av_seq_cache, time_seq=time_seq)
 
     def send_final_phase(self):
-        vec_go_pos = np.array([0.12, 0.08])*0.95
+        vec_go_pos = np.array([0.12, 0.08])*1.0
         self.ri.go_pos_unsafe_no_wait(*vec_go_pos.tolist(), sec=2.0)
         time.sleep(1.5)
         self.ri.move_gripper("larm", pos=0.0, wait=False)
@@ -256,7 +256,7 @@ class FridgeDemo(object):
         time.sleep(1.0)
         av_seq_reverse = np.flip(self.task_reach.av_seq_cache, axis=0)
         self._send_cmd(av_seq_reverse)
-        time.sleep(0.35 * len(av_seq_reverse)-1.0)
+        time.sleep(self.duration * len(av_seq_reverse)-0.4)
 
         #set_robot_config(self.task_reach.robot_model, self.joint_list, self.task_reach.av_seq_cache[-1], with_base=True)
 
@@ -266,7 +266,7 @@ class FridgeDemo(object):
         ret = demo.task_reach.robot_model.larm.move_end_pos(np.array([-0.2, 0, -0.3]), rotation_axis=None)
         demo.ri.angle_vector(demo.task_reach.robot_model.angle_vector(), time=1.0)
 
-        diff = np.array([0.35, -0.2, 0.15])
+        diff = np.array([0.45, -0.25, 0.15])
         ret = demo.task_reach.robot_model.rarm.move_end_pos(diff, rotation_axis=None)
         ik_success = (ret is not None)
         assert ik_success
@@ -339,8 +339,8 @@ if __name__=='__main__':
     time.sleep(1.0)
     demo.solve_third_phase(send_action=True)
     time.sleep(2.5)
-    demo.ri.move_gripper("rarm", pos=0.12, wait=False)
-    demo.ri.move_gripper("larm", pos=0.12, wait=False)
-    time.sleep(1.5)
+    demo.ri.move_gripper("rarm", pos=0.2, wait=False)
+    demo.ri.move_gripper("larm", pos=0.2, wait=False)
+    time.sleep(2.5)
     demo.send_final_phase()
 
