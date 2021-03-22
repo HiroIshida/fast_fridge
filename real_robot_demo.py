@@ -207,7 +207,7 @@ class FridgeDemo(object):
             time_seq = self.task_open.default_send_duration
             self._send_cmd(self.task_open.av_seq_cache, time_seq=time_seq)
             self.ri.move_gripper("rarm", pos=0.0, effort=10000)
-            time.sleep(sum(time_seq)-1.8)
+            time.sleep(sum(time_seq)-2.0)
 
     def solve_third_phase(self, send_action=False):
         counter = 0
@@ -222,7 +222,7 @@ class FridgeDemo(object):
         relative = trans - fridge_pos
 
         tmp_coords = self.task_open.fridge.copy_worldcoords()
-        addhoc_translate = -0.05
+        addhoc_translate = 0.02
         tmp_coords.translate([-0.05, addhoc_translate, -0.02])
 
         trans_modified = tmp_coords.worldpos() + relative
@@ -255,32 +255,33 @@ class FridgeDemo(object):
         self.ri.go_pos_unsafe_no_wait(*((-vec_go_pos).tolist()), sec=2.0)
         time.sleep(1.0)
         av_seq_reverse = np.flip(self.task_reach.av_seq_cache, axis=0)
-        self._send_cmd(av_seq_reverse)
-        time.sleep(self.duration * len(av_seq_reverse)-0.4)
+        self._send_cmd(av_seq_reverse[:-1])
+        time.sleep(self.duration * len(av_seq_reverse)-0.3)
 
         #set_robot_config(self.task_reach.robot_model, self.joint_list, self.task_reach.av_seq_cache[-1], with_base=True)
 
         # TODO fix demo -> self
         demo.task_reach.robot_model.angle_vector(demo.ri.angle_vector())
 
-        ret = demo.task_reach.robot_model.larm.move_end_pos(np.array([-0.2, 0, -0.3]), rotation_axis=None)
+        ret = demo.task_reach.robot_model.larm.move_end_pos(np.array([-0.3, 0, -0.4]), rotation_axis=None)
         demo.ri.angle_vector(demo.task_reach.robot_model.angle_vector(), time=1.0)
+        time.sleep(0.6)
 
-        diff = np.array([0.45, -0.25, 0.15])
+        diff = np.array([0.4, -0.2, 0.15])
         ret = demo.task_reach.robot_model.rarm.move_end_pos(diff, rotation_axis=None)
         ik_success = (ret is not None)
         assert ik_success
+        print(ret)
 
-        demo.ri.angle_vector(demo.task_reach.robot_model.angle_vector(), time=2.0)
-        time.sleep(1.2)
-        demo.ri.angle_vector(demo.robot_model2.angle_vector(), time=2.0, time_scale=1.0)
+        demo.ri.angle_vector(demo.task_reach.robot_model.angle_vector(), time=1.3)
+        time.sleep(0.9)
+        demo.ri.angle_vector(demo.robot_model2.angle_vector(), time=1.5, time_scale=1.0)
 
         """
         av_seq_reverse = np.flip(self.task_open.av_seq_cache, axis=0)
         self._send_cmd(av_seq_reverse)
         time.sleep(0.4 * len(av_seq_reverse))
         """
-
 
 
     def _send_cmd(self, av_seq, time_seq=None):

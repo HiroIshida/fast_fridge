@@ -30,6 +30,7 @@
     <arg name="i_max" value="73" />
     <arg name="i_min" value="30" />
 
+    <!--
     <node name="boxfilter_pre" pkg="nodelet" type="nodelet"
       args="standalone jsk_pcl/AttentionClipper"
       output="screen">
@@ -55,6 +56,7 @@
         keep_organized: true
       </rosparam>
     </node>
+    -->
 
 
   <arg name="create_manager" default="true" />
@@ -69,7 +71,7 @@
 
     <node pkg="nodelet" type="nodelet" name="hsi_filter$(arg FILTER_NAME_SUFFIX)"
           args="load jsk_pcl/HSIColorFilter $(arg manager)" output="screen">
-      <remap from="~input" to="$(arg INPUT2)" />
+      <remap from="~input" to="$(arg INPUT)" />
       <remap from="~output" to="$(arg OUTPUT)" />
       <rosparam>
         use_indices: false
