@@ -276,6 +276,7 @@ class FridgeDemo(object):
         self.ri.angle_vector(self.task_reach.robot_model.angle_vector(), time=1.3)
         time.sleep(0.9)
         self.ri.angle_vector(self.robot_model2.angle_vector(), time=1.5, time_scale=1.0)
+        self.ri.go_pos_unsafe_no_wait(*[-0.15, 0, 0], sec=1.0)
 
         """
         av_seq_reverse = np.flip(self.task_open.av_seq_cache, axis=0)
@@ -337,7 +338,7 @@ if __name__=='__main__':
 
     demo.solve_first_phase(send_action=True)
     demo.solve_while_second_phase(send_action=True)
-    time.sleep(0.7)
+    time.sleep(0.9)
     demo.solve_third_phase(send_action=True)
     demo.ri.move_gripper("rarm", pos=0.2, wait=False)
     time.sleep(2.5)
