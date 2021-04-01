@@ -97,11 +97,14 @@ class PoseProcessor(object):
             print("publish sift")
             print(self.handle_pose)
 
+        # NOTE Do not publish rough handle pose! it's really dangerous
+        """ 
         elif self.rough_handle_pose is not None:
             msg_handle_to_map = utils.convert_tf2posemsg(self.rough_handle_pose)
             self.pub.publish(msg_handle_to_map)
             print("publish rough")
             print(self.rough_handle_pose)
+        """
 
     def relative_fridge_pose(self):
         try:
