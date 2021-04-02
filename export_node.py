@@ -33,8 +33,15 @@ def handle_start_plan(req):
             door_open_failure_recovery()
         except:
             TriggerResponse(string="abort1")
-    time.sleep(0.7)
-    demo.solve_third_phase(send_action=True)
+    time.sleep(1.0)
+
+    try:
+        demo.solve_third_phase(send_action=True)
+    except PreReplanFailException:
+        print("wait a bit for observing the can and solve again")
+        time.sleep(2.0)
+        demo.solve_third_phase(send_action=True)
+
     demo.ri.move_gripper("rarm", pos=0.2, wait=False)
     time.sleep(2.5)
     demo.ri.move_gripper("larm", pos=0.2, wait=False)
