@@ -7,6 +7,9 @@ import tf
 class TakingTooLongException(Exception):
     pass
 
+class FailureDoorOpeningException(Exception):
+    pass
+
 def qv_mult(q1, v1_):
     length = np.linalg.norm(v1_)
     v1 = v1_/length
@@ -168,6 +171,7 @@ class FridgeDemo(object):
             self._send_cmd(self.task_approach.av_seq_cache, time_seq=time_seq)
             time.sleep(sum(time_seq))
 
+
     def send_cmd_first_and_second_batch(self):
         av_seq_batch = np.vstack([self.task_approach.av_seq_cache, self.task_open.av_seq_cache])
         self._send_cmd(av_seq_batch)
@@ -202,12 +206,17 @@ class FridgeDemo(object):
                         pass
                 rospy.loginfo(log_prefix + "aborted because tf_can_to_wrold is None")
         """
-
         if send_action:
             time_seq = self.task_open.default_send_duration
             self._send_cmd(self.task_open.av_seq_cache, time_seq=time_seq)
             self.ri.move_gripper("rarm", pos=0.0, effort=10000)
             time.sleep(sum(time_seq)-2.0)
+
+            # check if this process is successful
+            gripper_pos = self.ri.gripper_states['rarm'].process_value # in [m]
+            failure = gripper_pos < 0.01
+            if failure:
+                raise FailureDoorOpeningException
 
     def solve_third_phase(self, send_action=False):
         counter = 0
@@ -337,8 +346,19 @@ if __name__=='__main__':
 
     demo.update_fridge_pose()
 
-    demo.solve_first_phase(send_action=True)
-    demo.solve_while_second_phase(send_action=True)
+    try:
+        demo.solve_first_phase(send_action=True)
+        demo.solve_while_second_phase(send_action=True)
+    except FailureDoorOpeningException:
+        print("FailureDoorOpeningException catched: enter recovery")
+        demo.initialize_robot_pose()
+        demo.ri.go_pos_unsafe_no_wait(*[0.1, 0.15, 0], sec=1.0)
+        time.sleep(3.5)
+        demo.update_fridge_pose()
+        demo.solve_first_phase(send_action=True)
+        demo.solve_while_second_phase(send_action=True)
+
+    """
     time.sleep(0.9)
     demo.solve_third_phase(send_action=True)
     demo.ri.move_gripper("rarm", pos=0.2, wait=False)
@@ -346,3 +366,4 @@ if __name__=='__main__':
     demo.ri.move_gripper("larm", pos=0.2, wait=False)
     time.sleep(2.5)
     demo.send_final_phase()
+    """
