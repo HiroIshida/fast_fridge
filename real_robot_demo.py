@@ -276,7 +276,8 @@ class FridgeDemo(object):
         self.ri.angle_vector(self.task_reach.robot_model.angle_vector(), time=1.3)
         time.sleep(0.9)
         self.ri.angle_vector(self.robot_model2.angle_vector(), time=1.5, time_scale=1.0)
-        self.ri.go_pos_unsafe_no_wait(*[-0.15, 0, 0], sec=1.0)
+        self.ri.go_pos_unsafe_no_wait(*[-0.25, 0, 0], sec=1.0)
+        time.sleep(1.0)
 
         """
         av_seq_reverse = np.flip(self.task_open.av_seq_cache, axis=0)
